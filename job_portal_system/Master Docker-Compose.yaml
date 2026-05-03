@@ -1,45 +1,48 @@
+name: job-portal
+
 services:
-  # --- USER SERVICE stack ---
-  user-db:
-    image: postgres:15-alpine
-    environment:
-      POSTGRES_USER: user_admin
-      POSTGRES_PASSWORD: user_password
-      POSTGRES_DB: user_db
-    ports:
-      - "5431:5432"
 
-  user-service:
-    build: ./User\ Management\ Service
+  users-db:
+    image: postgres:16-alpine
+    container_name: jp-users-db
+    environment:
+      POSTGRES_DB:       users_db
+      POSTGRES_USER:     jp_user
+      POSTGRES_PASSWORD: jp_pass
     ports:
-      - "3001:3000"
+      - "5433:5432"
+    volumes:
+      - users-db-data:/var/lib/postgresql/data
+      - ./User Management Service/init-scripts:/docker-entrypoint-initdb.d:ro
+    networks:
+      - job-portal-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U jp_user -d users_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  user-management-service:
+    build:
+      context: ./User Management Service
+      dockerfile: dockerfile
+    container_name: jp-user-service
+    ports:
+      - "3001:3001"
+    env_file:
+      - ./User Management Service/.env
+    networks:
+      - job-portal-net
     depends_on:
-      - user-db
-    environment:
-      DATABASE_URL: postgres://user_admin:user_password@user-db:5432/user_db
+      users-db:
+        condition: service_healthy
+    restart: unless-stopped
 
-  # --- JOB SERVICE stack ---
-  job-db:
-    image: postgres:15-alpine
-    environment:
-      POSTGRES_USER: job_admin
-      POSTGRES_PASSWORD: job_password
-      POSTGRES_DB: job_db
-    ports:
-      - "5432:5432"
+networks:
+  job-portal-net:
+    name: job-portal-net
+    driver: bridge
 
-  job-service:
-    build: ./Job\ Service
-    ports:
-      - "3002:3000"
-    depends_on:
-      - job-db
-    environment:
-      DATABASE_URL: postgres://job_admin:job_password@job-db:5432/job_db
-
-  # --- APPLICATION SERVICE stack ---
-  app-service:
-    build: ./Application\ Service
-    ports:
-      - "3003:3000"
-    # This service could share a DB or have its own!
+volumes:
+  users-db-data:
+    name: jp-users-db-data
