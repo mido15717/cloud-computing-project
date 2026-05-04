@@ -13,7 +13,7 @@ CREATE TABLE IF NOT EXISTS jobs (
     salary_max  NUMERIC(10,2),
     skills      TEXT[],
     status      VARCHAR(20)   NOT NULL DEFAULT 'open'
-                              CHECK (status IN ('open','closed','draft')),
+                              CHECK (status IN ('open','closed','draft'))
 );
 
 CREATE INDEX IF NOT EXISTS idx_jobs_employer_id ON jobs(employer_id);
