@@ -1,4 +1,3 @@
-# Application Service schema
 CREATE TABLE IF NOT EXISTS applications (
     id           SERIAL PRIMARY KEY,
     job_id       INT         NOT NULL,
