@@ -63,7 +63,7 @@ app.post('/auth/register', async (req, res) => {
 
     // Insert user
     const result = await pool.query(
-      'INSERT INTO users (name, email, password_hash, role) VALUES ($1,$2,$3,$4) RETURNING id, name, email, role',
+      'INSERT INTO users (name, email, password, role) VALUES ($1,$2,$3,$4) RETURNING id, name, email, role',
       [name, email, hash, role]
     );
 
@@ -86,7 +86,7 @@ app.post('/auth/login', async (req, res) => {
     const result = await pool.query('SELECT * FROM users WHERE email=$1', [email]);
     const user   = result.rows[0];
 
-    if (!user || !(await bcrypt.compare(password, user.password_hash)))
+    if (!user || !(await bcrypt.compare(password, user.password)))
       return res.status(401).json({ error: 'Invalid email or password' });
 
     // Generate JWT
