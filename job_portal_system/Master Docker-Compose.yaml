@@ -2,6 +2,7 @@ name: job-portal
 
 services:
 
+  # ── Databases ───────────────────────────────────────────────────────────────
   users-db:
     image: postgres:16-alpine
     container_name: jp-users-db
@@ -22,6 +23,27 @@ services:
       timeout: 5s
       retries: 5
 
+  jobs-db:
+    image: postgres:16-alpine
+    container_name: jp-jobs-db
+    environment:
+      POSTGRES_DB:       jobs_db
+      POSTGRES_USER:     jp_user
+      POSTGRES_PASSWORD: jp_pass
+    ports:
+      - "5434:5432"
+    volumes:
+      - jobs-db-data:/var/lib/postgresql/data
+      - ./Job Service/init-scripts:/docker-entrypoint-initdb.d:ro
+    networks:
+      - job-portal-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U jp_user -d jobs_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── Services ─────────────────────────────────────────────────────────────────
   user-management-service:
     build:
       context: ./User Management Service
@@ -38,6 +60,22 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  job-service:
+    build:
+      context: ./Job Service
+      dockerfile: dockerfile
+    container_name: jp-job-service
+    ports:
+      - "3002:3002"
+    env_file:
+      - ./Job Service/.env
+    networks:
+      - job-portal-net
+    depends_on:
+      jobs-db:
+        condition: service_healthy
+    restart: unless-stopped
+
 networks:
   job-portal-net:
     name: job-portal-net
@@ -46,3 +84,5 @@ networks:
 volumes:
   users-db-data:
     name: jp-users-db-data
+  jobs-db-data:
+    name: jp-jobs-db-data
