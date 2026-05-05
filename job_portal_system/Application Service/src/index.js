@@ -8,6 +8,24 @@ const PORT = process.env.PORT || 3003;
 
 app.use(express.json());
 
+// ── Notification Service URL (resolved by Docker DNS on job-portal-net) ───────
+const NOTIFICATION_URL = process.env.NOTIFICATION_URL || 'http://notification-service:3004';
+
+// ── Helper: call notification service (non-blocking — errors don't fail the request) ──
+async function notify(endpoint, payload) {
+  try {
+    await fetch(`${NOTIFICATION_URL}${endpoint}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    console.log(`📨 Notification sent to ${endpoint}`);
+  } catch (err) {
+    // Notification failure should never break the main flow
+    console.error(`⚠️  Notification failed (${endpoint}):`, err.message);
+  }
+}
+
 // ── Database connection ───────────────────────────────────────────────────────
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
@@ -43,13 +61,12 @@ app.post('/applications', authMiddleware, async (req, res) => {
   if (req.user.role !== 'seeker')
     return res.status(403).json({ error: 'Only seekers can apply for jobs' });
 
-  const { job_id, cover_letter } = req.body;
+  const { job_id, cover_letter, seeker_name, seeker_email, job_title, company } = req.body;
 
   if (!job_id)
     return res.status(400).json({ error: 'job_id is required' });
 
   try {
-    // fixed: no timestamps in schema so no updated_at in INSERT
     const result = await pool.query(
       `INSERT INTO applications (job_id, seeker_id, cover_letter)
        VALUES ($1,$2,$3) RETURNING *`,
@@ -63,10 +80,18 @@ app.post('/applications', authMiddleware, async (req, res) => {
       [result.rows[0].id, req.user.id]
     );
 
+    // ── Notify seeker that application was received ───────────────────────────
+    // Non-blocking: runs after response is sent
+    notify('/notify/application-submitted', {
+      seeker_name,
+      seeker_email,
+      job_title,
+      company
+    });
+
     res.status(201).json({ message: 'Application submitted', application: result.rows[0] });
 
   } catch (err) {
-    // Handle duplicate application
     if (err.code === '23505')
       return res.status(409).json({ error: 'You have already applied for this job' });
     console.error('Apply error:', err.message);
@@ -79,13 +104,11 @@ app.get('/applications', authMiddleware, async (req, res) => {
   try {
     let result;
     if (req.user.role === 'seeker') {
-      // Seekers see only their own applications
       result = await pool.query(
         'SELECT * FROM applications WHERE seeker_id=$1 ORDER BY id DESC',
         [req.user.id]
       );
     } else {
-      // Employers see applications for a specific job
       const { job_id } = req.query;
       if (!job_id)
         return res.status(400).json({ error: 'job_id query param required for employers' });
@@ -111,7 +134,6 @@ app.get('/applications/:id', authMiddleware, async (req, res) => {
     if (!result.rows[0])
       return res.status(404).json({ error: 'Application not found' });
 
-    // Seekers can only view their own
     if (req.user.role === 'seeker' && result.rows[0].seeker_id !== req.user.id)
       return res.status(403).json({ error: 'Access denied' });
 
@@ -127,7 +149,7 @@ app.patch('/applications/:id/status', authMiddleware, async (req, res) => {
   if (req.user.role !== 'employer')
     return res.status(403).json({ error: 'Only employers can update application status' });
 
-  const { status } = req.body;
+  const { status, seeker_email, seeker_name, job_title } = req.body;
   const validStatuses = ['pending', 'reviewed', 'accepted', 'rejected'];
   if (!status || !validStatuses.includes(status))
     return res.status(400).json({ error: `status must be one of: ${validStatuses.join(', ')}` });
@@ -142,7 +164,6 @@ app.patch('/applications/:id/status', authMiddleware, async (req, res) => {
 
     const old_status = existing.rows[0].status;
 
-    // fixed: no updated_at column in schema
     const result = await pool.query(
       `UPDATE applications SET status=$1 WHERE id=$2 RETURNING *`,
       [status, req.params.id]
@@ -154,6 +175,14 @@ app.patch('/applications/:id/status', authMiddleware, async (req, res) => {
        VALUES ($1,$2,$3,$4)`,
       [req.params.id, old_status, status, req.user.id]
     );
+
+    // ── Notify seeker that status changed ────────────────────────────────────
+    notify('/notify/status-updated', {
+      seeker_name,
+      seeker_email,
+      job_title,
+      new_status: status
+    });
 
     res.json({ message: 'Status updated', application: result.rows[0] });
 
