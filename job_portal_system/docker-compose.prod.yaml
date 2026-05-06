@@ -1,6 +1,6 @@
+version: '3.8'
 services:
 
-  # ── Databases ────────────────────────────────────────────────────────────────
   users-db:
     image: postgres:16-alpine
     container_name: prod-users-db
@@ -58,17 +58,16 @@ services:
       retries: 5
     restart: always
 
-  # ── Services ─────────────────────────────────────────────────────────────────
   user-management-service:
     build:
       context: "./User Management Service"
       dockerfile: dockerfile
     container_name: prod-user-service
     ports:
-      - "5001:5001"
+      - "5001:3001"
     environment:
       NODE_ENV: production
-      PORT: 5001
+      PORT: 3001
       DATABASE_URL: postgresql://jp_user:${DB_PASSWORD}@users-db:5432/users_db
       JWT_SECRET: ${JWT_SECRET}
     networks:
@@ -84,10 +83,10 @@ services:
       dockerfile: dockerfile
     container_name: prod-job-service
     ports:
-      - "5002:5002"
+      - "5002:3002"
     environment:
       NODE_ENV: production
-      PORT: 5002
+      PORT: 3002
       DATABASE_URL: postgresql://jp_user:${DB_PASSWORD}@jobs-db:5432/jobs_db
       JWT_SECRET: ${JWT_SECRET}
     networks:
@@ -103,10 +102,10 @@ services:
       dockerfile: dockerfile
     container_name: prod-application-service
     ports:
-      - "5003:5003"
+      - "5003:3003"
     environment:
       NODE_ENV: production
-      PORT: 5003
+      PORT: 3003
       DATABASE_URL: postgresql://jp_user:${DB_PASSWORD}@apps-db:5432/apps_db
       JWT_SECRET: ${JWT_SECRET}
       NOTIFICATION_URL: http://notification-service:3004
@@ -123,10 +122,10 @@ services:
       dockerfile: dockerfile
     container_name: prod-notification-service
     ports:
-      - "5004:5004"
+      - "5004:3004"
     environment:
       NODE_ENV: production
-      PORT: 5004
+      PORT: 3004
       SMTP_HOST: ${SMTP_HOST}
       SMTP_PORT: ${SMTP_PORT}
       SMTP_USER: ${SMTP_USER}
