@@ -1,0 +1,132 @@
+
+name: job-portal-test
+
+services:
+
+  users-db:
+    image: postgres:16-alpine
+    container_name: test-users-db
+    environment:
+      POSTGRES_DB:       users_test
+      POSTGRES_USER:     jp_user
+      POSTGRES_PASSWORD: jp_pass
+    volumes:
+      - "./User Management Service/init-scripts:/docker-entrypoint-initdb.d:ro"
+    networks:
+      - job-portal-test-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U jp_user -d users_test"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  jobs-db:
+    image: postgres:16-alpine
+    container_name: test-jobs-db
+    environment:
+      POSTGRES_DB:       jobs_test
+      POSTGRES_USER:     jp_user
+      POSTGRES_PASSWORD: jp_pass
+    volumes:
+      - "./Job Service/init-scripts:/docker-entrypoint-initdb.d:ro"
+    networks:
+      - job-portal-test-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U jp_user -d jobs_test"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  apps-db:
+    image: postgres:16-alpine
+    container_name: test-apps-db
+    environment:
+      POSTGRES_DB:       apps_test
+      POSTGRES_USER:     jp_user
+      POSTGRES_PASSWORD: jp_pass
+    volumes:
+      - "./Application Service/init-scripts:/docker-entrypoint-initdb.d:ro"
+    networks:
+      - job-portal-test-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U jp_user -d apps_test"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  user-management-service:
+    build:
+      context: "./User Management Service"
+      dockerfile: dockerfile
+    container_name: test-user-service
+    ports:
+      - "4001:3001"    
+    environment:
+      NODE_ENV: test
+      PORT: 3001
+      DATABASE_URL: postgresql://jp_user:jp_pass@users-db:5432/users_test
+      JWT_SECRET: test-secret
+    networks:
+      - job-portal-test-net
+    depends_on:
+      users-db:
+        condition: service_healthy
+
+  job-service:
+    build:
+      context: "./Job Service"
+      dockerfile: dockerfile
+    container_name: test-job-service
+    ports:
+      - "4002:3002"
+    environment:
+      NODE_ENV: test
+      PORT: 3002
+      DATABASE_URL: postgresql://jp_user:jp_pass@jobs-db:5432/jobs_test
+      JWT_SECRET: test-secret
+    networks:
+      - job-portal-test-net
+    depends_on:
+      jobs-db:
+        condition: service_healthy
+
+  application-service:
+    build:
+      context: "./Application Service"
+      dockerfile: dockerfile
+    container_name: test-application-service
+    ports:
+      - "4003:3003"
+    environment:
+      NODE_ENV: test
+      PORT: 3003
+      DATABASE_URL: postgresql://jp_user:jp_pass@apps-db:5432/apps_test
+      JWT_SECRET: test-secret
+      NOTIFICATION_URL: http://notification-service:3004
+    networks:
+      - job-portal-test-net
+    depends_on:
+      apps-db:
+        condition: service_healthy
+
+  notification-service:
+    build:
+      context: "./Notification Service"
+      dockerfile: dockerfile
+    container_name: test-notification-service
+    ports:
+      - "4004:3004"
+    environment:
+      NODE_ENV: test
+      PORT: 3004
+      SMTP_HOST: smtp.gmail.com
+      SMTP_PORT: 587
+      SMTP_USER: your-email@gmail.com
+      SMTP_PASS: your-app-password
+    networks:
+      - job-portal-test-net
+
+networks:
+  job-portal-test-net:
+    name: job-portal-test-net
+    driver: bridge

@@ -1,0 +1,150 @@
+
+name: job-portal-dev
+
+services:
+
+  users-db:
+    image: postgres:16-alpine
+    container_name: dev-users-db
+    environment:
+      POSTGRES_DB:       users_db
+      POSTGRES_USER:     jp_user
+      POSTGRES_PASSWORD: jp_pass
+    ports:
+      - "5433:5432"
+    volumes:
+      - dev-users-db-data:/var/lib/postgresql/data
+      - "./User Management Service/init-scripts:/docker-entrypoint-initdb.d:ro"
+    networks:
+      - job-portal-dev-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U jp_user -d users_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  jobs-db:
+    image: postgres:16-alpine
+    container_name: dev-jobs-db
+    environment:
+      POSTGRES_DB:       jobs_db
+      POSTGRES_USER:     jp_user
+      POSTGRES_PASSWORD: jp_pass
+    ports:
+      - "5434:5432"
+    volumes:
+      - dev-jobs-db-data:/var/lib/postgresql/data
+      - "./Job Service/init-scripts:/docker-entrypoint-initdb.d:ro"
+    networks:
+      - job-portal-dev-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U jp_user -d jobs_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  apps-db:
+    image: postgres:16-alpine
+    container_name: dev-apps-db
+    environment:
+      POSTGRES_DB:       apps_db
+      POSTGRES_USER:     jp_user
+      POSTGRES_PASSWORD: jp_pass
+    ports:
+      - "5435:5432"
+    volumes:
+      - dev-apps-db-data:/var/lib/postgresql/data
+      - "./Application Service/init-scripts:/docker-entrypoint-initdb.d:ro"
+    networks:
+      - job-portal-dev-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U jp_user -d apps_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  user-management-service:
+    build:
+      context: "./User Management Service"
+      dockerfile: dockerfile
+    container_name: dev-user-service
+    ports:
+      - "3001:3001"
+    environment:
+      NODE_ENV: development
+      PORT: 3001
+      DATABASE_URL: postgresql://jp_user:jp_pass@users-db:5432/users_db
+      JWT_SECRET: dev-secret-change-in-prod
+    networks:
+      - job-portal-dev-net
+    depends_on:
+      users-db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  job-service:
+    build:
+      context: "./Job Service"
+      dockerfile: dockerfile
+    container_name: dev-job-service
+    ports:
+      - "3002:3002"
+    environment:
+      NODE_ENV: development
+      PORT: 3002
+      DATABASE_URL: postgresql://jp_user:jp_pass@jobs-db:5432/jobs_db
+      JWT_SECRET: dev-secret-change-in-prod
+    networks:
+      - job-portal-dev-net
+    depends_on:
+      jobs-db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  application-service:
+    build:
+      context: "./Application Service"
+      dockerfile: dockerfile
+    container_name: dev-application-service
+    ports:
+      - "3003:3003"
+    environment:
+      NODE_ENV: development
+      PORT: 3003
+      DATABASE_URL: postgresql://jp_user:jp_pass@apps-db:5432/apps_db
+      JWT_SECRET: dev-secret-change-in-prod
+      NOTIFICATION_URL: http://notification-service:3004
+    networks:
+      - job-portal-dev-net
+    depends_on:
+      apps-db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  notification-service:
+    build:
+      context: "./Notification Service"
+      dockerfile: dockerfile
+    container_name: dev-notification-service
+    ports:
+      - "3004:3004"
+    environment:
+      NODE_ENV: development
+      PORT: 3004
+      SMTP_HOST: smtp.gmail.com
+      SMTP_PORT: 587
+      SMTP_USER: your-email@gmail.com
+      SMTP_PASS: your-app-password
+    networks:
+      - job-portal-dev-net
+    restart: unless-stopped
+
+networks:
+  job-portal-dev-net:
+    name: job-portal-dev-net
+    driver: bridge
+
+volumes:
+  dev-users-db-data:
+  dev-jobs-db-data:
+  dev-apps-db-data:
