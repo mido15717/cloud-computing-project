@@ -139,7 +139,7 @@ services:
       - job-portal-dev-net
     restart: unless-stopped
     
-frontend:
+  frontend:
     build:
       context: "./frontend"
       dockerfile: dockerfile
