@@ -146,7 +146,7 @@ volumes:
 
 frontend:
     build:
-      context: "./Frontend"
+      context: "./frontend"
       dockerfile: dockerfile
     container_name: prod-frontend
     ports:

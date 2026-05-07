@@ -1,3 +1,4 @@
+
 name: job-portal-dev
 
 services:
@@ -137,8 +138,8 @@ services:
     networks:
       - job-portal-dev-net
     restart: unless-stopped
-
-  frontend:
+    
+frontend:
     build:
       context: "./frontend"
       dockerfile: dockerfile
@@ -162,3 +163,4 @@ volumes:
   dev-users-db-data:
   dev-jobs-db-data:
   dev-apps-db-data:
+
