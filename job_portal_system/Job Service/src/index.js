@@ -33,6 +33,24 @@ function authMiddleware(req, res, next) {
   }
 }
 
+// ── Helper: parse skills string → array ──────────────────────────────────────
+function parseSkills(skills) {
+  if (!skills) return null;
+  if (Array.isArray(skills)) return skills.map(s => s.trim()).filter(Boolean);
+  return skills.split(',').map(s => s.trim()).filter(Boolean);
+}
+
+// ── Helper: format skills array → comma string (for API responses) ────────────
+function skillsToString(skills) {
+  if (!skills) return null;
+  if (Array.isArray(skills)) return skills.join(', ');
+  return skills;
+}
+
+function formatJob(job) {
+  return { ...job, skills: skillsToString(job.skills) };
+}
+
 // ── Health check ──────────────────────────────────────────────────────────────
 app.get('/health', (_req, res) => {
   res.json({ status: 'ok', service: 'job-service' });
@@ -52,9 +70,10 @@ app.post('/jobs', authMiddleware, async (req, res) => {
     const result = await pool.query(
       `INSERT INTO jobs (employer_id, title, description, company, location, job_type, salary_min, salary_max, skills)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
-      [req.user.id, title, description, company, location, job_type, salary_min || null, salary_max || null, skills || null]
+      [req.user.id, title, description, company, location, job_type,
+       salary_min || null, salary_max || null, parseSkills(skills)]
     );
-    res.status(201).json({ message: 'Job posted successfully', job: result.rows[0] });
+    res.status(201).json({ message: 'Job posted successfully', job: formatJob(result.rows[0]) });
   } catch (err) {
     console.error('Post job error:', err.message);
     res.status(500).json({ error: 'Internal server error' });
@@ -67,15 +86,15 @@ app.get('/jobs', async (req, res) => {
   let query  = `SELECT * FROM jobs WHERE status='open'`;
   const params = [];
 
-  if (location) { params.push(location);        query += ` AND location=$${params.length}`; }
-  if (job_type) { params.push(job_type);         query += ` AND job_type=$${params.length}`; }
-  if (search)   { params.push(`%${search}%`);   query += ` AND title ILIKE $${params.length}`; }
+  if (location) { params.push(location);      query += ` AND location=$${params.length}`; }
+  if (job_type) { params.push(job_type);       query += ` AND job_type=$${params.length}`; }
+  if (search)   { params.push(`%${search}%`); query += ` AND title ILIKE $${params.length}`; }
 
   query += ' ORDER BY id DESC';
 
   try {
     const result = await pool.query(query, params);
-    res.json(result.rows);
+    res.json(result.rows.map(formatJob));
   } catch (err) {
     console.error('List jobs error:', err.message);
     res.status(500).json({ error: 'Internal server error' });
@@ -88,7 +107,7 @@ app.get('/jobs/:id', async (req, res) => {
     const result = await pool.query('SELECT * FROM jobs WHERE id=$1', [req.params.id]);
     if (!result.rows[0])
       return res.status(404).json({ error: 'Job not found' });
-    res.json(result.rows[0]);
+    res.json(formatJob(result.rows[0]));
   } catch (err) {
     console.error('Get job error:', err.message);
     res.status(500).json({ error: 'Internal server error' });
@@ -105,24 +124,25 @@ app.put('/jobs/:id', authMiddleware, async (req, res) => {
     if (existing.rows[0].employer_id !== req.user.id)
       return res.status(403).json({ error: 'You can only update your own job postings' });
 
+    const ex = existing.rows[0];
     const result = await pool.query(
       `UPDATE jobs SET
         title=$1, description=$2, location=$3, job_type=$4,
         salary_min=$5, salary_max=$6, skills=$7, status=$8
        WHERE id=$9 RETURNING *`,
       [
-        title       || existing.rows[0].title,
-        description || existing.rows[0].description,
-        location    || existing.rows[0].location,
-        job_type    || existing.rows[0].job_type,
-        salary_min  || existing.rows[0].salary_min,
-        salary_max  || existing.rows[0].salary_max,
-        skills      || existing.rows[0].skills,
-        status      || existing.rows[0].status,
+        title       || ex.title,
+        description || ex.description,
+        location    || ex.location,
+        job_type    || ex.job_type,
+        salary_min  !== undefined ? (salary_min || null) : ex.salary_min,
+        salary_max  !== undefined ? (salary_max || null) : ex.salary_max,
+        skills      !== undefined ? parseSkills(skills)  : ex.skills,
+        status      || ex.status,
         req.params.id
       ]
     );
-    res.json({ message: 'Job updated', job: result.rows[0] });
+    res.json({ message: 'Job updated', job: formatJob(result.rows[0]) });
   } catch (err) {
     console.error('Update job error:', err.message);
     res.status(500).json({ error: 'Internal server error' });
