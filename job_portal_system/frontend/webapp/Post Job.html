@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Job Portal — Post a Job</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<nav>
+  <a class="logo" href="index.html">JobPortal</a>
+  <div class="nav-links">
+    <a href="index.html">Jobs</a>
+    <a href="post-job.html" class="active">Post a Job</a>
+    <a href="applications.html">Applications</a>
+    <a href="#" onclick="logout()" class="btn-nav btn">Logout</a>
+  </div>
+</nav>
+
+<div style="max-width:640px;margin:0 auto;padding:2rem 1.5rem">
+  <div class="page-header">
+    <h1 id="pageTitle">Post a New Job</h1>
+  </div>
+
+  <div class="form-card" style="max-width:100%;margin:0">
+    <div id="alert"></div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem">
+      <div class="form-group" style="grid-column:1/-1">
+        <label>Job Title *</label>
+        <input type="text" id="title" placeholder="e.g. Senior Frontend Developer">
+      </div>
+
+      <div class="form-group" style="grid-column:1/-1">
+        <label>Company *</label>
+        <input type="text" id="company" placeholder="e.g. Acme Corp">
+      </div>
+
+      <div class="form-group">
+        <label>Location *</label>
+        <input type="text" id="location" placeholder="e.g. Cairo, Egypt">
+      </div>
+
+      <div class="form-group">
+        <label>Job Type *</label>
+        <select id="job_type">
+          <option value="">Select type…</option>
+          <option value="full-time">Full-time</option>
+          <option value="part-time">Part-time</option>
+          <option value="contract">Contract</option>
+          <option value="remote">Remote</option>
+          <option value="internship">Internship</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label>Min Salary (USD / yr)</label>
+        <input type="number" id="salary_min" placeholder="e.g. 50000" min="0">
+      </div>
+
+      <div class="form-group">
+        <label>Max Salary (USD / yr)</label>
+        <input type="number" id="salary_max" placeholder="e.g. 80000" min="0">
+      </div>
+
+      <div class="form-group" style="grid-column:1/-1">
+        <label>Required Skills</label>
+        <input type="text" id="skills" placeholder="Comma-separated e.g. React, Node.js, PostgreSQL">
+      </div>
+
+      <div class="form-group" style="grid-column:1/-1">
+        <label>Job Description *</label>
+        <textarea id="description" style="min-height:160px" placeholder="Describe the role, responsibilities, requirements…"></textarea>
+      </div>
+    </div>
+
+    <button class="btn btn-primary btn-full" onclick="submitJob()" style="margin-top:.5rem" id="submitBtn">Post Job</button>
+    <a href="index.html" class="btn btn-ghost btn-full" style="margin-top:.5rem">Cancel</a>
+  </div>
+</div>
+
+<script>
+  const token  = localStorage.getItem('token');
+  const role   = localStorage.getItem('role');
+
+  // Guard: employers only
+  if (!token || role !== 'employer') {
+    window.location.href = 'login.html';
+  }
+
+  function logout() {
+    ['token','role','userId'].forEach(k => localStorage.removeItem(k));
+    window.location.href = 'login.html';
+  }
+
+  // ── Edit mode: pre-fill form ──────────────────────────────────────────────
+  const params = new URLSearchParams(location.search);
+  const editId = params.get('edit');
+
+  if (editId) {
+    document.getElementById('pageTitle').textContent = 'Edit Job Posting';
+    document.getElementById('submitBtn').textContent = 'Save Changes';
+
+    fetch(`/api/jobs/jobs/${editId}`)
+      .then(r => r.json())
+      .then(job => {
+        document.getElementById('title').value       = job.title       || '';
+        document.getElementById('company').value     = job.company     || '';
+        document.getElementById('location').value    = job.location    || '';
+        document.getElementById('job_type').value    = job.job_type    || '';
+        document.getElementById('salary_min').value  = job.salary_min  || '';
+        document.getElementById('salary_max').value  = job.salary_max  || '';
+        document.getElementById('skills').value      = job.skills      || '';
+        document.getElementById('description').value = job.description || '';
+      });
+  }
+
+  // ── Submit ────────────────────────────────────────────────────────────────
+  async function submitJob() {
+    const alertDiv = document.getElementById('alert');
+    const btn      = document.getElementById('submitBtn');
+
+    const body = {
+      title:       document.getElementById('title').value.trim(),
+      company:     document.getElementById('company').value.trim(),
+      location:    document.getElementById('location').value.trim(),
+      job_type:    document.getElementById('job_type').value,
+      salary_min:  document.getElementById('salary_min').value || null,
+      salary_max:  document.getElementById('salary_max').value || null,
+      skills:      document.getElementById('skills').value.trim() || null,
+      description: document.getElementById('description').value.trim(),
+    };
+
+    if (!body.title || !body.company || !body.location || !body.job_type || !body.description) {
+      alertDiv.innerHTML = '<div class="alert alert-error">Please fill in all required fields.</div>';
+      return;
+    }
+
+    btn.disabled     = true;
+    btn.textContent  = editId ? 'Saving…' : 'Posting…';
+
+    const url    = editId ? `/api/jobs/jobs/${editId}` : '/api/jobs/jobs';
+    const method = editId ? 'PUT' : 'POST';
+
+    const res  = await fetch(url, {
+      method,
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify(body)
+    });
+
+    const data = await res.json();
+
+    if (res.ok) {
+      alertDiv.innerHTML = `<div class="alert alert-success">${editId ? 'Job updated!' : 'Job posted!'} Redirecting…</div>`;
+      setTimeout(() => window.location.href = 'index.html', 1200);
+    } else {
+      alertDiv.innerHTML = `<div class="alert alert-error">${data.error}</div>`;
+      btn.disabled    = false;
+      btn.textContent = editId ? 'Save Changes' : 'Post Job';
+    }
+  }
+</script>
+</body>
+</html>

@@ -22,7 +22,7 @@ async function notify(endpoint, payload) {
     console.log(`📨 Notification sent to ${endpoint}`);
   } catch (err) {
     // Notification failure should never break the main flow
-    console.error(`⚠️  Notification failed (${endpoint}):`, err.message);
+    console.error(`Notification failed (${endpoint}):`, err.message);
   }
 }
 

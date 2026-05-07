@@ -13,9 +13,9 @@ const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
 pool.connect((err, client, release) => {
   if (err) {
-    console.error('❌ Database connection failed:', err.message);
+    console.error('Database connection failed:', err.message);
   } else {
-    console.log('✅ Connected to jobs_db');
+    console.log('Connected to jobs_db');
     release();
   }
 });

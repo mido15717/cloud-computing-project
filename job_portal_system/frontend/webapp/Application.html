@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Job Portal — Applications</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<nav>
+  <a class="logo" href="index.html">JobPortal</a>
+  <div class="nav-links" id="navLinks"></div>
+</nav>
+
+<div class="page">
+  <div class="page-header">
+    <h1 id="pageTitle">Applications</h1>
+    <div id="headerInfo" style="color:var(--text-muted);font-size:.875rem"></div>
+  </div>
+
+  <!-- Employer: job picker -->
+  <div id="employerControls" style="display:none;margin-bottom:1.5rem">
+    <div style="display:flex;gap:.75rem;flex-wrap:wrap;align-items:center">
+      <select id="jobPicker" onchange="loadApplications()" style="flex:1;max-width:340px;padding:.6rem .9rem;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);font-family:var(--font-body);font-size:.875rem;outline:none">
+        <option value="">Select a job to view applications…</option>
+      </select>
+    </div>
+  </div>
+
+  <div id="alert"></div>
+  <div id="tableWrap"></div>
+</div>
+
+<!-- History Modal -->
+<div id="historyModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:200;align-items:center;justify-content:center">
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:2rem;max-width:500px;width:90%;max-height:80vh;overflow-y:auto">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.25rem">
+      <h3 style="font-family:var(--font-head);font-size:1.1rem">Status History</h3>
+      <button onclick="closeModal()" class="btn btn-ghost btn-sm">✕ Close</button>
+    </div>
+    <div id="historyContent"></div>
+  </div>
+</div>
+
+<script>
+  const token  = localStorage.getItem('token');
+  const role   = localStorage.getItem('role');
+
+  if (!token) window.location.href = 'login.html';
+
+  // ── Nav ──────────────────────────────────────────────────────────────────
+  (function renderNav() {
+    const nav = document.getElementById('navLinks');
+    if (role === 'employer') {
+      nav.innerHTML = `<a href="index.html">Jobs</a><a href="post-job.html">Post a Job</a><a href="applications.html" class="active">Applications</a><a href="#" onclick="logout()" class="btn-nav btn">Logout</a>`;
+    } else {
+      nav.innerHTML = `<a href="index.html">Jobs</a><a href="applications.html" class="active">My Applications</a><a href="#" onclick="logout()" class="btn-nav btn">Logout</a>`;
+    }
+  })();
+
+  function logout() {
+    ['token','role','userId'].forEach(k => localStorage.removeItem(k));
+    window.location.href = 'login.html';
+  }
+
+  function esc(s) {
+    if (!s) return '';
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  function statusBadge(s) {
+    return `<span class="status-badge status-${s}">${s}</span>`;
+  }
+
+  function fmtDate(d) {
+    return d ? new Date(d).toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' }) : '—';
+  }
+
+  // ── Employer: load job list first ─────────────────────────────────────────
+  async function initEmployer() {
+    document.getElementById('pageTitle').textContent = 'Job Applications';
+    document.getElementById('employerControls').style.display = 'block';
+
+    // Check for ?job_id in URL
+    const params = new URLSearchParams(location.search);
+    const urlJobId = params.get('job_id');
+
+    const res  = await fetch('/api/jobs/jobs');
+    const jobs = await res.json();
+    const myJobs = jobs.filter(j => String(j.employer_id) === localStorage.getItem('userId'));
+
+    const picker = document.getElementById('jobPicker');
+    myJobs.forEach(j => {
+      const o = document.createElement('option');
+      o.value = j.id;
+      o.textContent = `${j.title} (${j.company})`;
+      if (String(j.id) === urlJobId) o.selected = true;
+      picker.appendChild(o);
+    });
+
+    if (!myJobs.length) {
+      document.getElementById('tableWrap').innerHTML = `
+        <div class="empty-state">
+          <div class="icon">📋</div>
+          <p>You haven't posted any jobs yet.</p>
+          <a href="post-job.html" class="btn btn-primary">Post Your First Job</a>
+        </div>`;
+      return;
+    }
+
+    if (urlJobId || myJobs.length) loadApplications();
+  }
+
+  // ── Load applications ─────────────────────────────────────────────────────
+  async function loadApplications() {
+    const wrap = document.getElementById('tableWrap');
+    wrap.innerHTML = `<div style="padding:2rem;text-align:center;color:var(--text-muted)">Loading…</div>`;
+
+    try {
+      let url;
+      if (role === 'seeker') {
+        url = '/api/applications/applications';
+      } else {
+        const jobId = document.getElementById('jobPicker').value;
+        if (!jobId) { wrap.innerHTML = ''; return; }
+        url = `/api/applications/applications?job_id=${jobId}`;
+      }
+
+      const res  = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+      const apps = await res.json();
+
+      if (!res.ok) {
+        wrap.innerHTML = `<div class="alert alert-error">${apps.error}</div>`;
+        return;
+      }
+
+      document.getElementById('headerInfo').textContent = `${apps.length} application${apps.length !== 1 ? 's' : ''}`;
+
+      if (!apps.length) {
+        wrap.innerHTML = `
+          <div class="empty-state">
+            <div class="icon">${role === 'seeker' ? '🚀' : '📭'}</div>
+            <p>${role === 'seeker' ? 'You haven\'t applied to any jobs yet.' : 'No applications for this job yet.'}</p>
+            ${role === 'seeker' ? '<a href="index.html" class="btn btn-primary">Browse Jobs</a>' : ''}
+          </div>`;
+        return;
+      }
+
+      // For seekers: enrich with job data
+      if (role === 'seeker') {
+        await enrichWithJobData(apps);
+        renderSeekerTable(apps, wrap);
+      } else {
+        renderEmployerTable(apps, wrap);
+      }
+    } catch (err) {
+      wrap.innerHTML = `<div class="alert alert-error">Failed to load applications.</div>`;
+    }
+  }
+
+  async function enrichWithJobData(apps) {
+    const jobIds = [...new Set(apps.map(a => a.job_id))];
+    const jobs   = {};
+    await Promise.all(jobIds.map(async id => {
+      try {
+        const r = await fetch(`/api/jobs/jobs/${id}`);
+        if (r.ok) jobs[id] = await r.json();
+      } catch {}
+    }));
+    apps.forEach(a => { a._job = jobs[a.job_id] || null; });
+  }
+
+  // ── Seeker table ──────────────────────────────────────────────────────────
+  function renderSeekerTable(apps, wrap) {
+    wrap.innerHTML = `
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Job</th>
+              <th>Company</th>
+              <th>Applied</th>
+              <th>Status</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            ${apps.map(a => `
+              <tr>
+                <td><a href="job-detail.html?id=${a.job_id}" style="color:var(--text);text-decoration:none;font-weight:500">${esc(a._job?.title || 'Job #' + a.job_id)}</a></td>
+                <td style="color:var(--text-muted)">${esc(a._job?.company || '—')}</td>
+                <td style="color:var(--text-muted)">${fmtDate(a.created_at)}</td>
+                <td>${statusBadge(a.status)}</td>
+                <td><button class="btn btn-ghost btn-sm" onclick="showHistory(${a.id})">History</button></td>
+              </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>`;
+  }
+
+  // ── Employer table ────────────────────────────────────────────────────────
+  function renderEmployerTable(apps, wrap) {
+    wrap.innerHTML = `
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Applicant ID</th>
+              <th>Applied</th>
+              <th>Cover Letter</th>
+              <th>Status</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${apps.map(a => `
+              <tr>
+                <td style="font-weight:500">Seeker #${a.seeker_id}</td>
+                <td style="color:var(--text-muted)">${fmtDate(a.created_at)}</td>
+                <td style="color:var(--text-muted);max-width:220px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
+                  ${a.cover_letter ? esc(a.cover_letter) : '<em>No cover letter</em>'}
+                </td>
+                <td>${statusBadge(a.status)}</td>
+                <td style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap">
+                  <select class="status-select" onchange="updateStatus(${a.id}, this.value, this)">
+                    <option value="pending"  ${a.status==='pending'  ? 'selected':''}>Pending</option>
+                    <option value="reviewed" ${a.status==='reviewed' ? 'selected':''}>Reviewed</option>
+                    <option value="accepted" ${a.status==='accepted' ? 'selected':''}>Accepted</option>
+                    <option value="rejected" ${a.status==='rejected' ? 'selected':''}>Rejected</option>
+                  </select>
+                  <button class="btn btn-ghost btn-sm" onclick="showHistory(${a.id})">History</button>
+                </td>
+              </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>`;
+  }
+
+  // ── Update Status (employer) ──────────────────────────────────────────────
+  async function updateStatus(appId, newStatus, selectEl) {
+    selectEl.disabled = true;
+    const res = await fetch(`/api/applications/applications/${appId}/status`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ status: newStatus })
+    });
+
+    selectEl.disabled = false;
+
+    if (!res.ok) {
+      const d = await res.json();
+      document.getElementById('alert').innerHTML = `<div class="alert alert-error">${d.error}</div>`;
+    } else {
+      // Refresh the row's badge
+      const badge = selectEl.closest('tr').querySelector('.status-badge');
+      if (badge) { badge.className = `status-badge status-${newStatus}`; badge.textContent = newStatus; }
+      document.getElementById('alert').innerHTML = `<div class="alert alert-success">Status updated to "${newStatus}".</div>`;
+      setTimeout(() => document.getElementById('alert').innerHTML = '', 3000);
+    }
+  }
+
+  // ── History Modal ─────────────────────────────────────────────────────────
+  async function showHistory(appId) {
+    document.getElementById('historyModal').style.display = 'flex';
+    document.getElementById('historyContent').innerHTML = '<p style="color:var(--text-muted)">Loading…</p>';
+
+    const res  = await fetch(`/api/applications/applications/${appId}/history`, { headers: { Authorization: `Bearer ${token}` } });
+    const rows = await res.json();
+
+    if (!rows.length) {
+      document.getElementById('historyContent').innerHTML = '<p style="color:var(--text-muted)">No history found.</p>';
+      return;
+    }
+
+    document.getElementById('historyContent').innerHTML = `
+      <div style="display:flex;flex-direction:column;gap:.75rem">
+        ${rows.map((r, i) => `
+          <div style="display:flex;align-items:center;gap:.75rem">
+            <div style="width:28px;height:28px;border-radius:50%;background:var(--surface2);border:2px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:.7rem;color:var(--text-muted);flex-shrink:0">${i+1}</div>
+            <div style="flex:1">
+              <div style="font-size:.8rem;color:var(--text-muted)">${fmtDate(r.changed_at)}</div>
+              <div style="display:flex;align-items:center;gap:.5rem;margin-top:.2rem">
+                ${r.old_status ? `<span class="status-badge status-${r.old_status}">${r.old_status}</span><span style="color:var(--text-muted)">→</span>` : '<span style="color:var(--text-muted);font-size:.8rem">Created</span>'}
+                <span class="status-badge status-${r.new_status}">${r.new_status}</span>
+              </div>
+            </div>
+          </div>`).join('')}
+      </div>`;
+  }
+
+  function closeModal() {
+    document.getElementById('historyModal').style.display = 'none';
+  }
+  document.getElementById('historyModal').addEventListener('click', e => {
+    if (e.target === document.getElementById('historyModal')) closeModal();
+  });
+
+  // ── Init ──────────────────────────────────────────────────────────────────
+  if (role === 'employer') {
+    initEmployer();
+  } else {
+    document.getElementById('pageTitle').textContent = 'My Applications';
+    loadApplications();
+  }
+</script>
+</body>
+</html>

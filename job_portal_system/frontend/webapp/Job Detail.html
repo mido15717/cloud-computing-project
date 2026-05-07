@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Job Portal — Job Detail</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<nav>
+  <a class="logo" href="index.html">JobPortal</a>
+  <div class="nav-links" id="navLinks"></div>
+</nav>
+
+<div class="job-detail">
+  <a href="index.html" class="btn btn-ghost btn-sm" style="margin-bottom:1.25rem">← Back to Jobs</a>
+  <div id="alert"></div>
+  <div id="content"></div>
+</div>
+
+<script>
+  const params = new URLSearchParams(location.search);
+  const jobId  = params.get('id');
+  const token  = localStorage.getItem('token');
+  const role   = localStorage.getItem('role');
+
+  // ── Nav ─────────────────────────────────────────────────────────────────
+  (function renderNav() {
+    const nav = document.getElementById('navLinks');
+    if (token) {
+      const extra = role === 'employer'
+        ? `<a href="post-job.html">Post a Job</a><a href="applications.html">Applications</a>`
+        : `<a href="applications.html">My Applications</a>`;
+      nav.innerHTML = `<a href="index.html">Jobs</a>${extra}<a href="#" onclick="logout()" class="btn-nav btn">Logout</a>`;
+    } else {
+      nav.innerHTML = `<a href="index.html">Jobs</a><a href="login.html">Login</a><a href="signup.html" class="btn-nav btn">Sign Up</a>`;
+    }
+  })();
+
+  function logout() {
+    ['token','role','userId'].forEach(k => localStorage.removeItem(k));
+    window.location.href = 'login.html';
+  }
+
+  function esc(s) {
+    if (!s) return '';
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+  function fmtNum(n) { return n ? Number(n).toLocaleString() : '?'; }
+
+  // ── Load Job ─────────────────────────────────────────────────────────────
+  async function loadJob() {
+    if (!jobId) { showError('No job ID provided.'); return; }
+
+    try {
+      const res = await fetch(`/api/jobs/jobs/${jobId}`);
+      if (!res.ok) { showError('Job not found.'); return; }
+      const job = await res.json();
+      render(job);
+    } catch {
+      showError('Failed to load job.');
+    }
+  }
+
+  function render(job) {
+    const salary = job.salary_min || job.salary_max
+      ? `<span class="salary">$${fmtNum(job.salary_min)} – $${fmtNum(job.salary_max)} / yr</span>`
+      : '<span style="color:var(--text-muted)">Salary not specified</span>';
+
+    const typeColor = { 'remote': 'tag-accent', 'full-time': 'tag-blue', 'part-time': 'tag-green', 'contract': 'tag-red', 'internship': '' }[job.job_type] || '';
+
+    const isEmployer  = role === 'employer';
+    const isOwner     = isEmployer && String(job.employer_id) === localStorage.getItem('userId');
+
+    // Apply section (seekers only when logged in)
+    let applySection = '';
+    if (!token) {
+      applySection = `<div class="apply-box"><p style="color:var(--text-muted);margin-bottom:1rem">Sign in to apply for this position.</p><a href="login.html" class="btn btn-primary">Login to Apply</a></div>`;
+    } else if (role === 'seeker') {
+      applySection = `
+        <div class="apply-box">
+          <h3>Apply for this Position</h3>
+          <div id="applyAlert"></div>
+          <div class="form-group">
+            <label>Cover Letter <span style="color:var(--text-muted)">(optional)</span></label>
+            <textarea id="coverLetter" placeholder="Tell the employer why you're a great fit…"></textarea>
+          </div>
+          <button class="btn btn-primary btn-full" onclick="apply(${job.id}, '${esc(job.title)}', '${esc(job.company)}')">Submit Application</button>
+        </div>`;
+    } else if (isOwner) {
+      applySection = `
+        <div class="apply-box" style="display:flex;gap:.75rem;flex-wrap:wrap;align-items:center">
+          <p style="flex:1;color:var(--text-muted)">You own this job posting.</p>
+          <a href="applications.html?job_id=${job.id}" class="btn btn-ghost">View Applications</a>
+          <a href="post-job.html?edit=${job.id}" class="btn btn-primary">Edit Job</a>
+          <button class="btn btn-danger" onclick="deleteJob(${job.id})">Delete</button>
+        </div>`;
+    }
+
+    document.getElementById('content').innerHTML = `
+      <div class="job-detail-header">
+        <h1>${esc(job.title)}</h1>
+        <p style="color:var(--text-muted);margin-top:.25rem">🏢 ${esc(job.company)} · 📍 ${esc(job.location)}</p>
+        <div class="job-detail-meta">
+          <span class="tag ${typeColor}">${esc(job.job_type)}</span>
+          ${salary}
+          ${job.skills ? job.skills.split(',').map(s => `<span class="tag">${esc(s.trim())}</span>`).join('') : ''}
+        </div>
+      </div>
+
+      <div class="job-detail-body">${esc(job.description)}</div>
+
+      ${applySection}
+    `;
+
+    document.title = `${job.title} — Job Portal`;
+  }
+
+  // ── Apply ─────────────────────────────────────────────────────────────────
+  async function apply(jobId, jobTitle, company) {
+    const cover    = document.getElementById('coverLetter').value;
+    const alertDiv = document.getElementById('applyAlert');
+    const btn      = document.querySelector('.apply-box .btn');
+
+    // Fetch seeker info for notification payload
+    const userId   = localStorage.getItem('userId');
+    let seekerName = '', seekerEmail = '';
+    try {
+      const u = await fetch(`/api/users/profile/${userId}`, { headers: { Authorization: `Bearer ${token}` } });
+      if (u.ok) { const d = await u.json(); seekerName = d.name; seekerEmail = d.email; }
+    } catch {}
+
+    btn.disabled = true;
+    btn.textContent = 'Submitting…';
+
+    const res = await fetch('/api/applications/applications', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ job_id: jobId, cover_letter: cover, seeker_name: seekerName, seeker_email: seekerEmail, job_title: jobTitle, company })
+    });
+
+    const data = await res.json();
+
+    if (res.ok) {
+      alertDiv.innerHTML = '<div class="alert alert-success">Application submitted! You\'ll receive a confirmation email.</div>';
+      btn.style.display = 'none';
+      document.getElementById('coverLetter').disabled = true;
+    } else {
+      alertDiv.innerHTML = `<div class="alert alert-error">${data.error}</div>`;
+      btn.disabled = false;
+      btn.textContent = 'Submit Application';
+    }
+  }
+
+  // ── Delete Job ────────────────────────────────────────────────────────────
+  async function deleteJob(id) {
+    if (!confirm('Delete this job posting? This cannot be undone.')) return;
+    const res = await fetch(`/api/jobs/jobs/${id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } });
+    if (res.ok) {
+      window.location.href = 'index.html';
+    } else {
+      const d = await res.json();
+      showError(d.error || 'Failed to delete job.');
+    }
+  }
+
+  function showError(msg) {
+    document.getElementById('alert').innerHTML = `<div class="alert alert-error">${msg}</div>`;
+  }
+
+  loadJob();
+</script>
+</body>
+</html>
