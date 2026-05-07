@@ -130,3 +130,17 @@ networks:
   job-portal-test-net:
     name: job-portal-test-net
     driver: bridge
+
+frontend:
+    build:
+      context: "./Frontend"
+      dockerfile: dockerfile
+    container_name: test-frontend
+    ports:
+      - "8081:80"
+    networks:
+      - job-portal-test-net
+    depends_on:
+      - user-management-service
+      - job-service
+      - application-service

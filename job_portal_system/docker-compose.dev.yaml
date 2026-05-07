@@ -148,3 +148,18 @@ volumes:
   dev-users-db-data:
   dev-jobs-db-data:
   dev-apps-db-data:
+
+frontend:
+    build:
+      context: "./frontend"
+      dockerfile: dockerfile
+    container_name: dev-frontend
+    ports:
+      - "8080:80"
+    networks:
+      - job-portal-dev-net
+    depends_on:
+      - user-management-service
+      - job-service
+      - application-service
+    restart: unless-stopped

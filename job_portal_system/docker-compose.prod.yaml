@@ -143,3 +143,18 @@ volumes:
   prod-users-db-data:
   prod-jobs-db-data:
   prod-apps-db-data:
+
+frontend:
+    build:
+      context: "./Frontend"
+      dockerfile: dockerfile
+    container_name: prod-frontend
+    ports:
+      - "8082:80"
+    networks:
+      - job-portal-prod-net
+    depends_on:
+      - user-management-service
+      - job-service
+      - application-service
+    restart: always
