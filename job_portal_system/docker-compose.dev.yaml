@@ -1,4 +1,3 @@
-
 name: job-portal-dev
 
 services:
@@ -139,17 +138,7 @@ services:
       - job-portal-dev-net
     restart: unless-stopped
 
-networks:
-  job-portal-dev-net:
-    name: job-portal-dev-net
-    driver: bridge
-
-volumes:
-  dev-users-db-data:
-  dev-jobs-db-data:
-  dev-apps-db-data:
-
-frontend:
+  frontend:
     build:
       context: "./frontend"
       dockerfile: dockerfile
@@ -163,3 +152,13 @@ frontend:
       - job-service
       - application-service
     restart: unless-stopped
+
+networks:
+  job-portal-dev-net:
+    name: job-portal-dev-net
+    driver: bridge
+
+volumes:
+  dev-users-db-data:
+  dev-jobs-db-data:
+  dev-apps-db-data:
