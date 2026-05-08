@@ -53,9 +53,9 @@
   (function renderNav() {
     const nav = document.getElementById('navLinks');
     if (role === 'employer') {
-      nav.innerHTML = `<a href="index.html">Jobs</a><a href="post-job.html">Post a Job</a><a href="applications.html" class="active">Applications</a><a href="#" onclick="logout()" class="btn-nav btn">Logout</a>`;
+      nav.innerHTML = `<a href="index.html">Jobs</a><a href="Post Job.html">Post a Job</a><a href="Application.html" class="active">Applications</a><a href="#" onclick="logout()" class="btn-nav btn">Logout</a>`;
     } else {
-      nav.innerHTML = `<a href="index.html">Jobs</a><a href="applications.html" class="active">My Applications</a><a href="#" onclick="logout()" class="btn-nav btn">Logout</a>`;
+      nav.innerHTML = `<a href="index.html">Jobs</a><a href="Application.html" class="active">My Applications</a><a href="#" onclick="logout()" class="btn-nav btn">Logout</a>`;
     }
   })();
 
@@ -82,12 +82,14 @@
     document.getElementById('pageTitle').textContent = 'Job Applications';
     document.getElementById('employerControls').style.display = 'block';
 
-    // Check for ?job_id in URL
-    const params = new URLSearchParams(location.search);
+    const params   = new URLSearchParams(location.search);
     const urlJobId = params.get('job_id');
 
     const res  = await fetch('/api/jobs/jobs');
     const jobs = await res.json();
+
+    // Show ALL jobs for employer (not just their own — status filter shows open only,
+    // so filter by employer_id from localStorage)
     const myJobs = jobs.filter(j => String(j.employer_id) === localStorage.getItem('userId'));
 
     const picker = document.getElementById('jobPicker');
@@ -104,12 +106,17 @@
         <div class="empty-state">
           <div class="icon">📋</div>
           <p>You haven't posted any jobs yet.</p>
-          <a href="post-job.html" class="btn btn-primary">Post Your First Job</a>
+          <a href="Post Job.html" class="btn btn-primary">Post Your First Job</a>
         </div>`;
       return;
     }
 
-    if (urlJobId || myJobs.length) loadApplications();
+    // Auto-select first job if none in URL
+    if (!urlJobId && myJobs.length) {
+      picker.value = myJobs[0].id;
+    }
+
+    loadApplications();
   }
 
   // ── Load applications ─────────────────────────────────────────────────────
@@ -141,13 +148,12 @@
         wrap.innerHTML = `
           <div class="empty-state">
             <div class="icon">${role === 'seeker' ? '🚀' : '📭'}</div>
-            <p>${role === 'seeker' ? 'You haven\'t applied to any jobs yet.' : 'No applications for this job yet.'}</p>
+            <p>${role === 'seeker' ? "You haven't applied to any jobs yet." : 'No applications for this job yet.'}</p>
             ${role === 'seeker' ? '<a href="index.html" class="btn btn-primary">Browse Jobs</a>' : ''}
           </div>`;
         return;
       }
 
-      // For seekers: enrich with job data
       if (role === 'seeker') {
         await enrichWithJobData(apps);
         renderSeekerTable(apps, wrap);
@@ -188,7 +194,7 @@
           <tbody>
             ${apps.map(a => `
               <tr>
-                <td><a href="job-detail.html?id=${a.job_id}" style="color:var(--text);text-decoration:none;font-weight:500">${esc(a._job?.title || 'Job #' + a.job_id)}</a></td>
+                <td><a href="Job Detail.html?id=${a.job_id}" style="color:var(--text);text-decoration:none;font-weight:500">${esc(a._job?.title || 'Job #' + a.job_id)}</a></td>
                 <td style="color:var(--text-muted)">${esc(a._job?.company || '—')}</td>
                 <td style="color:var(--text-muted)">${fmtDate(a.created_at)}</td>
                 <td>${statusBadge(a.status)}</td>
@@ -252,7 +258,6 @@
       const d = await res.json();
       document.getElementById('alert').innerHTML = `<div class="alert alert-error">${d.error}</div>`;
     } else {
-      // Refresh the row's badge
       const badge = selectEl.closest('tr').querySelector('.status-badge');
       if (badge) { badge.className = `status-badge status-${newStatus}`; badge.textContent = newStatus; }
       document.getElementById('alert').innerHTML = `<div class="alert alert-success">Status updated to "${newStatus}".</div>`;

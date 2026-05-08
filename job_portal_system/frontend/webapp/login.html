@@ -12,7 +12,7 @@
   <a class="logo" href="index.html">JobPortal</a>
   <div class="nav-links">
     <a href="index.html">Jobs</a>
-    <a href="login.html">Login</a>
+    <a href="login.html" class="active">Login</a>
     <a href="signup.html">Sign Up</a>
   </div>
 </nav>
@@ -31,7 +31,7 @@
     <input type="password" id="password" placeholder="••••••••">
   </div>
 
-  <button class="btn btn-primary btn-full" onclick="login()">Login</button>
+  <button class="btn btn-primary btn-full" id="loginBtn" onclick="login()">Login</button>
 
   <div class="link-text">
     Don't have an account? <a href="signup.html">Sign up here</a>
@@ -40,35 +40,55 @@
 
 <script>
   async function login() {
-    const email    = document.getElementById('email').value;
+    const email    = document.getElementById('email').value.trim();
     const password = document.getElementById('password').value;
     const alertDiv = document.getElementById('alert');
+    const btn      = document.getElementById('loginBtn');
 
     if (!email || !password) {
       alertDiv.innerHTML = '<div class="alert alert-error">Please fill in all fields.</div>';
       return;
     }
 
-    const res  = await fetch('/api/users/auth/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password })
-    });
+    btn.disabled = true;
+    btn.textContent = 'Logging in...';
 
-    const data = await res.json();
+    try {
+      const res = await fetch('/api/users/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password })
+      });
 
-    if (res.ok) {
-      localStorage.setItem('token', data.token);
-      localStorage.setItem('role',  data.role);
-      localStorage.setItem('userId', data.id);
-      alertDiv.innerHTML = '<div class="alert alert-success">Login successful! Redirecting...</div>';
-      setTimeout(() => window.location.href = 'index.html', 1000);
-    } else {
-      alertDiv.innerHTML = `<div class="alert alert-error">${data.error}</div>`;
+      const data = await res.json();
+
+      if (res.ok) {
+        localStorage.setItem('token', data.token);
+        localStorage.setItem('role',  data.role);
+        localStorage.setItem('userId', data.id);
+        
+        alertDiv.innerHTML = '<div class="alert alert-success">Login successful! Redirecting...</div>';
+        
+        // Redirect logic using your specific naming conventions
+        setTimeout(() => {
+          if (data.role === 'employer') {
+            window.location.href = 'Application.html';
+          } else {
+            window.location.href = 'index.html';
+          }
+        }, 1000);
+      } else {
+        alertDiv.innerHTML = `<div class="alert alert-error">${data.error}</div>`;
+        btn.disabled = false;
+        btn.textContent = 'Login';
+      }
+    } catch (error) {
+      alertDiv.innerHTML = '<div class="alert alert-error">Connection error. Please try again.</div>';
+      btn.disabled = false;
+      btn.textContent = 'Login';
     }
   }
 
-  // Allow Enter key to submit
   document.addEventListener('keypress', e => {
     if (e.key === 'Enter') login();
   });

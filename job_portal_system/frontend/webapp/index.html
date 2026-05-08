@@ -4,18 +4,21 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Job Portal — Find Jobs</title>
-    <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
 
 <nav>
   <a class="logo" href="index.html">JobPortal</a>
   <div class="nav-links" id="navLinks">
-    <a href="index.html">Jobs</a>
+    <a href="index.html" class="active">Jobs</a>
     <a href="login.html" id="loginLink">Login</a>
     <a href="signup.html" id="registerLink">Sign Up</a>
-    <a href="Applications.html" id="applicationsLink" style="display:none">My Applications</a>
+    <!-- Updated naming: Applications.html -> Application.html -->
+    <a href="Application.html" id="applicationsLink" style="display:none">My Applications</a>
+    <!-- Updated naming: Job Detail.html -->
     <a href="Job Detail.html" id="myJobsLink" style="display:none">My Jobs</a>
+    <!-- Updated naming: Post Job.html -->
     <a href="Post Job.html" id="postJobLink" style="display:none">Post a Job</a>
     <a href="#" id="logoutLink" style="display:none" onclick="logout()">Logout</a>
   </div>
@@ -44,8 +47,7 @@
 </div>
 
 <!-- Apply Modal -->
-<div id="applyModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%;
-     background:rgba(0,0,0,0.5); z-index:1000; justify-content:center; align-items:center;">
+<div id="applyModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:1000; justify-content:center; align-items:center;">
   <div style="background:white; border-radius:12px; padding:2rem; max-width:480px; width:90%;">
     <h3 style="margin-bottom:1rem; color:#1a73e8;">Apply for <span id="applyJobTitle"></span></h3>
     <div class="form-group">
@@ -54,7 +56,7 @@
     </div>
     <div id="applyAlert"></div>
     <div style="display:flex; gap:1rem; margin-top:1rem;">
-      <button class="btn btn-primary" onclick="submitApplication()">Submit Application</button>
+      <button class="btn btn-primary" id="submitAppBtn" onclick="submitApplication()">Submit Application</button>
       <button class="btn" style="background:#eee;" onclick="closeModal()">Cancel</button>
     </div>
   </div>
@@ -65,11 +67,12 @@
   const role  = localStorage.getItem('role');
   let currentJobId = null;
 
-  // Show/hide nav links based on login state
+  // Show/hide nav links based on login state and roles
   if (token) {
     document.getElementById('loginLink').style.display    = 'none';
     document.getElementById('registerLink').style.display = 'none';
     document.getElementById('logoutLink').style.display   = 'inline';
+    
     if (role === 'seeker') {
       document.getElementById('applicationsLink').style.display = 'inline';
     }
@@ -85,36 +88,40 @@
     const location = document.getElementById('locationFilter').value;
 
     let url = '/api/jobs/jobs?';
-    if (search)   url += `search=${search}&`;
-    if (job_type) url += `job_type=${job_type}&`;
-    if (location) url += `location=${location}&`;
+    if (search)   url += `search=${encodeURIComponent(search)}&`;
+    if (job_type) url += `job_type=${encodeURIComponent(job_type)}&`;
+    if (location) url += `location=${encodeURIComponent(location)}&`;
 
-    const res  = await fetch(url);
-    const jobs = await res.json();
-    const list = document.getElementById('jobsList');
+    try {
+      const res  = await fetch(url);
+      const jobs = await res.json();
+      const list = document.getElementById('jobsList');
 
-    if (!jobs.length) {
-      list.innerHTML = '<div class="empty"><p>No jobs found.</p></div>';
-      return;
-    }
+      if (!jobs.length) {
+        list.innerHTML = '<div class="empty"><p>No jobs found.</p></div>';
+        return;
+      }
 
-    list.innerHTML = jobs.map(job => `
-      <div class="card">
-        <h3>${job.title}</h3>
-        <p><strong>${job.company}</strong> — ${job.location}</p>
-        <p>${job.description.substring(0, 120)}...</p>
-        <div style="margin-top:0.8rem;">
-          <span class="badge badge-blue">${job.job_type}</span>
-          ${job.salary_min ? `<span class="badge badge-green">$${job.salary_min} - $${job.salary_max}</span>` : ''}
+      list.innerHTML = jobs.map(job => `
+        <div class="card">
+          <h3>${job.title}</h3>
+          <p><strong>${job.company}</strong> — ${job.location}</p>
+          <p>${job.description.substring(0, 120)}...</p>
+          <div style="margin-top:0.8rem;">
+            <span class="badge badge-blue">${job.job_type}</span>
+            ${job.salary_min ? `<span class="badge badge-green">$${job.salary_min} - $${job.salary_max}</span>` : ''}
+          </div>
+          ${token && role === 'seeker' ? `
+            <button class="btn btn-primary" style="margin-top:1rem;"
+              onclick="openApply(${job.id}, '${job.title.replace(/'/g, "\\'")}')">Apply Now</button>
+          ` : ''}
+          ${!token ? `<p style="margin-top:0.8rem; color:#888; font-size:0.85rem;">
+            <a href="login.html">Login</a> to apply</p>` : ''}
         </div>
-        ${token && role === 'seeker' ? `
-          <button class="btn btn-primary" style="margin-top:1rem;"
-            onclick="openApply(${job.id}, '${job.title}')">Apply Now</button>
-        ` : ''}
-        ${!token ? `<p style="margin-top:0.8rem; color:#888; font-size:0.85rem;">
-          <a href="login.html">Login</a> to apply</p>` : ''}
-      </div>
-    `).join('');
+      `).join('');
+    } catch (err) {
+      console.error("Error loading jobs:", err);
+    }
   }
 
   function openApply(jobId, jobTitle) {
@@ -130,25 +137,39 @@
   }
 
   async function submitApplication() {
-    const cover_letter = document.getElementById('coverLetter').value;
+    const cover_letter = document.getElementById('coverLetter').value.trim();
     const alertDiv     = document.getElementById('applyAlert');
+    const btn          = document.getElementById('submitAppBtn');
 
-    const res  = await fetch('/api/applications/applications', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      },
-      body: JSON.stringify({ job_id: currentJobId, cover_letter })
-    });
+    btn.disabled = true;
+    btn.textContent = 'Submitting...';
 
-    const data = await res.json();
+    try {
+      const res = await fetch('/api/applications/applications', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ job_id: currentJobId, cover_letter })
+      });
 
-    if (res.ok) {
-      alertDiv.innerHTML = '<div class="alert alert-success">Application submitted successfully!</div>';
-      setTimeout(closeModal, 1500);
-    } else {
-      alertDiv.innerHTML = `<div class="alert alert-error">${data.error}</div>`;
+      const data = await res.json();
+
+      if (res.ok) {
+        alertDiv.innerHTML = '<div class="alert alert-success">Application submitted! Redirecting to Application.html...</div>';
+        setTimeout(() => {
+          window.location.href = 'Application.html';
+        }, 1500);
+      } else {
+        alertDiv.innerHTML = `<div class="alert alert-error">${data.error}</div>`;
+        btn.disabled = false;
+        btn.textContent = 'Submit Application';
+      }
+    } catch (err) {
+      alertDiv.innerHTML = '<div class="alert alert-error">Server error. Please try again.</div>';
+      btn.disabled = false;
+      btn.textContent = 'Submit Application';
     }
   }
 

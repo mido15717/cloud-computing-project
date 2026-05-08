@@ -30,8 +30,8 @@
     const nav = document.getElementById('navLinks');
     if (token) {
       const extra = role === 'employer'
-        ? `<a href="post-job.html">Post a Job</a><a href="applications.html">Applications</a>`
-        : `<a href="applications.html">My Applications</a>`;
+        ? `<a href="Post Job.html">Post a Job</a><a href="Application.html">Applications</a>`
+        : `<a href="Application.html">My Applications</a>`;
       nav.innerHTML = `<a href="index.html">Jobs</a>${extra}<a href="#" onclick="logout()" class="btn-nav btn">Logout</a>`;
     } else {
       nav.innerHTML = `<a href="index.html">Jobs</a><a href="login.html">Login</a><a href="signup.html" class="btn-nav btn">Sign Up</a>`;
@@ -49,10 +49,8 @@
   }
   function fmtNum(n) { return n ? Number(n).toLocaleString() : '?'; }
 
-  // ── Load Job ─────────────────────────────────────────────────────────────
   async function loadJob() {
     if (!jobId) { showError('No job ID provided.'); return; }
-
     try {
       const res = await fetch(`/api/jobs/jobs/${jobId}`);
       if (!res.ok) { showError('Job not found.'); return; }
@@ -68,12 +66,9 @@
       ? `<span class="salary">$${fmtNum(job.salary_min)} – $${fmtNum(job.salary_max)} / yr</span>`
       : '<span style="color:var(--text-muted)">Salary not specified</span>';
 
-    const typeColor = { 'remote': 'tag-accent', 'full-time': 'tag-blue', 'part-time': 'tag-green', 'contract': 'tag-red', 'internship': '' }[job.job_type] || '';
+    const isEmployer = role === 'employer';
+    const isOwner    = isEmployer && String(job.employer_id) === localStorage.getItem('userId');
 
-    const isEmployer  = role === 'employer';
-    const isOwner     = isEmployer && String(job.employer_id) === localStorage.getItem('userId');
-
-    // Apply section (seekers only when logged in)
     let applySection = '';
     if (!token) {
       applySection = `<div class="apply-box"><p style="color:var(--text-muted);margin-bottom:1rem">Sign in to apply for this position.</p><a href="login.html" class="btn btn-primary">Login to Apply</a></div>`;
@@ -92,8 +87,8 @@
       applySection = `
         <div class="apply-box" style="display:flex;gap:.75rem;flex-wrap:wrap;align-items:center">
           <p style="flex:1;color:var(--text-muted)">You own this job posting.</p>
-          <a href="applications.html?job_id=${job.id}" class="btn btn-ghost">View Applications</a>
-          <a href="post-job.html?edit=${job.id}" class="btn btn-primary">Edit Job</a>
+          <a href="Application.html?job_id=${job.id}" class="btn btn-ghost">View Applications</a>
+          <a href="Post Job.html?edit=${job.id}" class="btn btn-primary">Edit Job</a>
           <button class="btn btn-danger" onclick="deleteJob(${job.id})">Delete</button>
         </div>`;
     }
@@ -103,35 +98,29 @@
         <h1>${esc(job.title)}</h1>
         <p style="color:var(--text-muted);margin-top:.25rem">🏢 ${esc(job.company)} · 📍 ${esc(job.location)}</p>
         <div class="job-detail-meta">
-          <span class="tag ${typeColor}">${esc(job.job_type)}</span>
+          <span class="tag">${esc(job.job_type)}</span>
           ${salary}
-          ${job.skills ? job.skills.split(',').map(s => `<span class="tag">${esc(s.trim())}</span>`).join('') : ''}
         </div>
       </div>
-
       <div class="job-detail-body">${esc(job.description)}</div>
-
       ${applySection}
     `;
-
     document.title = `${job.title} — Job Portal`;
   }
 
-  // ── Apply ─────────────────────────────────────────────────────────────────
   async function apply(jobId, jobTitle, company) {
     const cover    = document.getElementById('coverLetter').value;
     const alertDiv = document.getElementById('applyAlert');
     const btn      = document.querySelector('.apply-box .btn');
 
-    // Fetch seeker info for notification payload
-    const userId   = localStorage.getItem('userId');
+    const userId = localStorage.getItem('userId');
     let seekerName = '', seekerEmail = '';
     try {
       const u = await fetch(`/api/users/profile/${userId}`, { headers: { Authorization: `Bearer ${token}` } });
       if (u.ok) { const d = await u.json(); seekerName = d.name; seekerEmail = d.email; }
     } catch {}
 
-    btn.disabled = true;
+    btn.disabled    = true;
     btn.textContent = 'Submitting…';
 
     const res = await fetch('/api/applications/applications', {
@@ -143,17 +132,16 @@
     const data = await res.json();
 
     if (res.ok) {
-      alertDiv.innerHTML = '<div class="alert alert-success">Application submitted! You\'ll receive a confirmation email.</div>';
+      alertDiv.innerHTML = '<div class="alert alert-success">Application submitted successfully!</div>';
       btn.style.display = 'none';
       document.getElementById('coverLetter').disabled = true;
     } else {
       alertDiv.innerHTML = `<div class="alert alert-error">${data.error}</div>`;
-      btn.disabled = false;
+      btn.disabled    = false;
       btn.textContent = 'Submit Application';
     }
   }
 
-  // ── Delete Job ────────────────────────────────────────────────────────────
   async function deleteJob(id) {
     if (!confirm('Delete this job posting? This cannot be undone.')) return;
     const res = await fetch(`/api/jobs/jobs/${id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } });
