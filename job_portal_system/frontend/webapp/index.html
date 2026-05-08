@@ -10,18 +10,15 @@
 
 <nav>
   <a class="logo" href="index.html">JobPortal</a>
-  <div class="nav-links" id="navLinks">
-    <a href="index.html" class="active">Jobs</a>
-    <a href="login.html" id="loginLink">Login</a>
-    <a href="signup.html" id="registerLink">Sign Up</a>
-    <!-- Updated naming: Applications.html -> Application.html -->
-    <a href="Application.html" id="applicationsLink" style="display:none">My Applications</a>
-    <!-- Updated naming: Job Detail.html -->
-    <a href="Job Detail.html" id="myJobsLink" style="display:none">My Jobs</a>
-    <!-- Updated naming: Post Job.html -->
-    <a href="Post Job.html" id="postJobLink" style="display:none">Post a Job</a>
-    <a href="#" id="logoutLink" style="display:none" onclick="logout()">Logout</a>
-  </div>
+    <div class="nav-links" id="navLinks">
+        <a href="index.html" class="active">Jobs</a>
+        <a href="login.html" id="loginLink">Login</a>
+        <a href="signup.html" id="registerLink">Sign Up</a>
+        <a href="Application.html" id="applicationsLink" style="display:none">My Applications</a>
+        <a href="Application.html" id="myJobsLink" style="display:none">My Jobs</a>
+        <a href="Post Job.html" id="postJobLink" style="display:none">Post a Job</a>
+        <a href="#" id="logoutLink" style="display:none" onclick="logout()">Logout</a>
+    </div>
 </nav>
 
 <div class="container">
@@ -102,23 +99,37 @@
         return;
       }
 
-      list.innerHTML = jobs.map(job => `
-        <div class="card">
-          <h3>${job.title}</h3>
-          <p><strong>${job.company}</strong> — ${job.location}</p>
-          <p>${job.description.substring(0, 120)}...</p>
-          <div style="margin-top:0.8rem;">
-            <span class="badge badge-blue">${job.job_type}</span>
-            ${job.salary_min ? `<span class="badge badge-green">$${job.salary_min} - $${job.salary_max}</span>` : ''}
-          </div>
-          ${token && role === 'seeker' ? `
-            <button class="btn btn-primary" style="margin-top:1rem;"
-              onclick="openApply(${job.id}, '${job.title.replace(/'/g, "\\'")}')">Apply Now</button>
-          ` : ''}
-          ${!token ? `<p style="margin-top:0.8rem; color:#888; font-size:0.85rem;">
-            <a href="login.html">Login</a> to apply</p>` : ''}
-        </div>
-      `).join('');
+     list.innerHTML = jobs.map(job => `
+  <div class="card">
+    <h3>
+      <a href="Job Detail.html?id=${job.id}"
+         style="color:inherit;text-decoration:none;">
+        ${job.title}
+      </a>
+    </h3>
+    <p><strong>${job.company}</strong> — ${job.location}</p>
+    <p>${job.description.substring(0, 120)}...</p>
+    <div style="margin-top:0.8rem;">
+      <span class="badge badge-blue">${job.job_type}</span>
+      ${job.salary_min ? `<span class="badge badge-green">$${job.salary_min} - $${job.salary_max}</span>` : ''}
+    </div>
+    <div style="margin-top:1rem; display:flex; gap:0.5rem; flex-wrap:wrap;">
+      <a href="Job Detail.html?id=${job.id}" class="btn btn-ghost">View Details</a>
+      ${token && role === 'seeker' ? `
+        <button class="btn btn-primary"
+          onclick="openApply(${job.id}, '${job.title.replace(/'/g, "\\'")}')">
+          Apply Now
+        </button>
+      ` : ''}
+      ${token && role === 'employer' ? `
+        <a href="Job Detail.html?id=${job.id}" class="btn btn-primary">Manage</a>
+      ` : ''}
+      ${!token ? `
+        <a href="login.html" class="btn btn-primary">Login to Apply</a>
+      ` : ''}
+    </div>
+  </div>
+`).join('');
     } catch (err) {
       console.error("Error loading jobs:", err);
     }
