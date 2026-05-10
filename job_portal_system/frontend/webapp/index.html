@@ -10,15 +10,45 @@
 
 <nav>
   <a class="logo" href="index.html">JobPortal</a>
-    <div class="nav-links" id="navLinks">
-        <a href="index.html" class="active">Jobs</a>
-        <a href="login.html" id="loginLink">Login</a>
-        <a href="signup.html" id="registerLink">Sign Up</a>
-        <a href="Application.html" id="applicationsLink" style="display:none">My Applications</a>
-        <a href="Application.html" id="myJobsLink" style="display:none">My Jobs</a>
-        <a href="Post Job.html" id="postJobLink" style="display:none">Post a Job</a>
-        <a href="#" id="logoutLink" style="display:none" onclick="logout()">Logout</a>
+
+  <!-- Notification bell — only visible when logged in as seeker -->
+  <div id="notifBell" style="display:none; position:relative; cursor:pointer;
+       margin-left:auto; margin-right:1rem; align-items:center;"
+       onclick="toggleNotifications()">
+    <span style="font-size:1.4rem;">🔔</span>
+    <span id="notifCount"
+          style="display:none; position:absolute; top:-6px; right:-8px;
+                 background:#d93025; color:white; border-radius:50%;
+                 width:18px; height:18px; font-size:11px;
+                 align-items:center; justify-content:center; font-weight:bold;">
+    </span>
+    <div id="notifDropdown"
+         style="display:none; position:absolute; right:0; top:36px;
+                background:white; border:1px solid #ddd; border-radius:10px;
+                width:320px; max-height:400px; overflow-y:auto;
+                box-shadow:0 4px 16px rgba(0,0,0,0.15); z-index:999;">
+      <div style="padding:0.75rem 1rem; border-bottom:1px solid #eee;
+                  display:flex; justify-content:space-between; align-items:center;">
+        <strong style="color:#333; font-size:0.95rem;">Notifications</strong>
+        <button onclick="markAllRead(event)"
+                style="font-size:0.75rem; color:#1a73e8; background:none;
+                       border:none; cursor:pointer; padding:0;">
+          Mark all read
+        </button>
+      </div>
+      <div id="notifList" style="padding:0.5rem;"></div>
     </div>
+  </div>
+
+  <div class="nav-links" id="navLinks">
+    <a href="index.html" class="active">Jobs</a>
+    <a href="login.html" id="loginLink">Login</a>
+    <a href="signup.html" id="registerLink">Sign Up</a>
+    <a href="Application.html" id="applicationsLink" style="display:none">My Applications</a>
+    <a href="Application.html" id="myJobsLink" style="display:none">My Jobs</a>
+    <a href="Post Job.html" id="postJobLink" style="display:none">Post a Job</a>
+    <a href="#" id="logoutLink" style="display:none" onclick="logout()">Logout</a>
+  </div>
 </nav>
 
 <div class="container">
@@ -44,7 +74,8 @@
 </div>
 
 <!-- Apply Modal -->
-<div id="applyModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:1000; justify-content:center; align-items:center;">
+<div id="applyModal" style="display:none; position:fixed; top:0; left:0; width:100%;
+     height:100%; background:rgba(0,0,0,0.5); z-index:1000; justify-content:center; align-items:center;">
   <div style="background:white; border-radius:12px; padding:2rem; max-width:480px; width:90%;">
     <h3 style="margin-bottom:1rem; color:#1a73e8;">Apply for <span id="applyJobTitle"></span></h3>
     <div class="form-group">
@@ -60,18 +91,22 @@
 </div>
 
 <script>
-  const token = localStorage.getItem('token');
-  const role  = localStorage.getItem('role');
-  let currentJobId = null;
+  const token  = localStorage.getItem('token');
+  const role   = localStorage.getItem('role');
+  const userId = localStorage.getItem('userId');
+  let currentJobId    = null;
+  let currentJobTitle = null;
+  let currentCompany  = null;
 
-  // Show/hide nav links based on login state and roles
+  // ── Show/hide nav links ───────────────────────────────────────────────────
   if (token) {
     document.getElementById('loginLink').style.display    = 'none';
     document.getElementById('registerLink').style.display = 'none';
     document.getElementById('logoutLink').style.display   = 'inline';
-    
     if (role === 'seeker') {
       document.getElementById('applicationsLink').style.display = 'inline';
+      // Show bell for seekers only
+      document.getElementById('notifBell').style.display = 'flex';
     }
     if (role === 'employer') {
       document.getElementById('myJobsLink').style.display  = 'inline';
@@ -79,6 +114,7 @@
     }
   }
 
+  // ── Load jobs ─────────────────────────────────────────────────────────────
   async function loadJobs() {
     const search   = document.getElementById('searchInput').value;
     const job_type = document.getElementById('jobTypeFilter').value;
@@ -99,44 +135,43 @@
         return;
       }
 
-     list.innerHTML = jobs.map(job => `
-  <div class="card">
-    <h3>
-      <a href="Job Detail.html?id=${job.id}"
-         style="color:inherit;text-decoration:none;">
-        ${job.title}
-      </a>
-    </h3>
-    <p><strong>${job.company}</strong> — ${job.location}</p>
-    <p>${job.description.substring(0, 120)}...</p>
-    <div style="margin-top:0.8rem;">
-      <span class="badge badge-blue">${job.job_type}</span>
-      ${job.salary_min ? `<span class="badge badge-green">$${job.salary_min} - $${job.salary_max}</span>` : ''}
-    </div>
-    <div style="margin-top:1rem; display:flex; gap:0.5rem; flex-wrap:wrap;">
-      <a href="Job Detail.html?id=${job.id}" class="btn btn-ghost">View Details</a>
-      ${token && role === 'seeker' ? `
-        <button class="btn btn-primary"
-          onclick="openApply(${job.id}, '${job.title.replace(/'/g, "\\'")}')">
-          Apply Now
-        </button>
-      ` : ''}
-      ${token && role === 'employer' ? `
-        <a href="Job Detail.html?id=${job.id}" class="btn btn-primary">Manage</a>
-      ` : ''}
-      ${!token ? `
-        <a href="login.html" class="btn btn-primary">Login to Apply</a>
-      ` : ''}
-    </div>
-  </div>
-`).join('');
+      list.innerHTML = jobs.map(job => `
+        <div class="card">
+          <h3>
+            <a href="Job Detail.html?id=${job.id}" style="color:inherit;text-decoration:none;">
+              ${job.title}
+            </a>
+          </h3>
+          <p><strong>${job.company}</strong> — ${job.location}</p>
+          <p>${job.description.substring(0, 120)}...</p>
+          <div style="margin-top:0.8rem;">
+            <span class="badge badge-blue">${job.job_type}</span>
+            ${job.salary_min ? `<span class="badge badge-green">$${job.salary_min} - $${job.salary_max}</span>` : ''}
+          </div>
+          <div style="margin-top:1rem; display:flex; gap:0.5rem; flex-wrap:wrap;">
+            <a href="Job Detail.html?id=${job.id}" class="btn btn-ghost">View Details</a>
+            ${token && role === 'seeker' ? `
+              <button class="btn btn-primary"
+                onclick="openApply(${job.id}, '${job.title.replace(/'/g,"\\'")}', '${job.company.replace(/'/g,"\\'")}')">
+                Apply Now
+              </button>` : ''}
+            ${token && role === 'employer' ? `
+              <a href="Job Detail.html?id=${job.id}" class="btn btn-primary">Manage</a>` : ''}
+            ${!token ? `
+              <a href="login.html" class="btn btn-primary">Login to Apply</a>` : ''}
+          </div>
+        </div>
+      `).join('');
     } catch (err) {
-      console.error("Error loading jobs:", err);
+      console.error('Error loading jobs:', err);
     }
   }
 
-  function openApply(jobId, jobTitle) {
-    currentJobId = jobId;
+  // ── Apply modal ───────────────────────────────────────────────────────────
+  function openApply(jobId, jobTitle, company) {
+    currentJobId    = jobId;
+    currentJobTitle = jobTitle;
+    currentCompany  = company;
     document.getElementById('applyJobTitle').textContent = jobTitle;
     document.getElementById('applyModal').style.display  = 'flex';
     document.getElementById('applyAlert').innerHTML = '';
@@ -152,34 +187,37 @@
     const alertDiv     = document.getElementById('applyAlert');
     const btn          = document.getElementById('submitAppBtn');
 
-    btn.disabled = true;
+    btn.disabled    = true;
     btn.textContent = 'Submitting...';
 
     try {
       const res = await fetch('/api/applications/applications', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
+          'Content-Type':  'application/json',
           'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify({ job_id: currentJobId, cover_letter })
+        body: JSON.stringify({
+          job_id:       currentJobId,
+          cover_letter,
+          job_title:    currentJobTitle,   // ← needed for RabbitMQ notification
+          company:      currentCompany     // ← needed for RabbitMQ notification
+        })
       });
 
       const data = await res.json();
 
       if (res.ok) {
-        alertDiv.innerHTML = '<div class="alert alert-success">Application submitted! Redirecting to Application.html...</div>';
-        setTimeout(() => {
-          window.location.href = 'Application.html';
-        }, 1500);
+        alertDiv.innerHTML = '<div class="alert alert-success">Application submitted!</div>';
+        setTimeout(() => window.location.href = 'Application.html', 1500);
       } else {
         alertDiv.innerHTML = `<div class="alert alert-error">${data.error}</div>`;
-        btn.disabled = false;
+        btn.disabled    = false;
         btn.textContent = 'Submit Application';
       }
     } catch (err) {
       alertDiv.innerHTML = '<div class="alert alert-error">Server error. Please try again.</div>';
-      btn.disabled = false;
+      btn.disabled    = false;
       btn.textContent = 'Submit Application';
     }
   }
@@ -187,6 +225,74 @@
   function logout() {
     localStorage.clear();
     window.location.href = 'login.html';
+  }
+
+  // ── Notification bell ─────────────────────────────────────────────────────
+  async function fetchNotifications() {
+    if (!token || !userId || role !== 'seeker') return;
+    try {
+      const res  = await fetch(`/api/notifications/${userId}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await res.json();
+
+      const countEl = document.getElementById('notifCount');
+      if (data.unread > 0) {
+        countEl.textContent   = data.unread > 9 ? '9+' : data.unread;
+        countEl.style.display = 'flex';
+      } else {
+        countEl.style.display = 'none';
+      }
+
+      const list = document.getElementById('notifList');
+      if (!data.notifications.length) {
+        list.innerHTML = `<p style="padding:1.25rem;color:#999;text-align:center;font-size:0.875rem;">
+          No notifications yet</p>`;
+        return;
+      }
+
+      list.innerHTML = data.notifications.map(n => `
+        <div style="padding:0.65rem 0.75rem; border-radius:6px; margin-bottom:4px;
+                    background:${n.read ? '#fff' : '#e8f0fe'};
+                    border-left:3px solid ${n.read ? '#ddd' : '#1a73e8'};">
+          <p style="margin:0; font-size:0.85rem; color:#333; line-height:1.4;">${n.message}</p>
+        </div>
+      `).join('');
+
+    } catch (err) {
+      console.error('Failed to fetch notifications:', err);
+    }
+  }
+
+  function toggleNotifications() {
+    const dropdown = document.getElementById('notifDropdown');
+    const isOpen   = dropdown.style.display === 'block';
+    dropdown.style.display = isOpen ? 'none' : 'block';
+    if (!isOpen) markAllRead();
+  }
+
+  async function markAllRead(e) {
+    if (e) e.stopPropagation();
+    if (!userId) return;
+    await fetch(`/api/notifications/${userId}/read`, {
+      method:  'PATCH',
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    document.getElementById('notifCount').style.display = 'none';
+    fetchNotifications();
+  }
+
+  // Close dropdown when clicking outside
+  document.addEventListener('click', (e) => {
+    const bell = document.getElementById('notifBell');
+    if (bell && !bell.contains(e.target))
+      document.getElementById('notifDropdown').style.display = 'none';
+  });
+
+  // Poll every 10 seconds
+  if (token && userId && role === 'seeker') {
+    fetchNotifications();
+    setInterval(fetchNotifications, 10000);
   }
 
   loadJobs();

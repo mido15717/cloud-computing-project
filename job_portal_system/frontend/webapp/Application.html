@@ -73,10 +73,6 @@
     return `<span class="status-badge status-${s}">${s}</span>`;
   }
 
-  function fmtDate(d) {
-    return d ? new Date(d).toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' }) : '—';
-  }
-
   // ── Employer: load job list first ─────────────────────────────────────────
   async function initEmployer() {
     document.getElementById('pageTitle').textContent = 'Job Applications';
@@ -178,70 +174,66 @@
   }
 
   // ── Seeker table ──────────────────────────────────────────────────────────
-  function renderSeekerTable(apps, wrap) {
-    wrap.innerHTML = `
-      <div class="table-wrap">
-        <table>
-          <thead>
+ function renderSeekerTable(apps, wrap) {
+  wrap.innerHTML = `
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Job</th>
+            <th>Company</th>
+            <th>Status</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          ${apps.map(a => `
             <tr>
-              <th>Job</th>
-              <th>Company</th>
-              <th>Applied</th>
-              <th>Status</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            ${apps.map(a => `
-              <tr>
-                <td><a href="Job Detail.html?id=${a.job_id}" style="color:var(--text);text-decoration:none;font-weight:500">${esc(a._job?.title || 'Job #' + a.job_id)}</a></td>
-                <td style="color:var(--text-muted)">${esc(a._job?.company || '—')}</td>
-                <td style="color:var(--text-muted)">${fmtDate(a.created_at)}</td>
-                <td>${statusBadge(a.status)}</td>
-                <td><button class="btn btn-ghost btn-sm" onclick="showHistory(${a.id})">History</button></td>
-              </tr>`).join('')}
-          </tbody>
-        </table>
-      </div>`;
-  }
+              <td><a href="Job Detail.html?id=${a.job_id}" style="color:var(--text);text-decoration:none;font-weight:500">${esc(a._job?.title || 'Job #' + a.job_id)}</a></td>
+              <td style="color:var(--text-muted)">${esc(a._job?.company || '—')}</td>
+              <td>${statusBadge(a.status)}</td>
+              <td><button class="btn btn-ghost btn-sm" onclick="showHistory(${a.id})">History</button></td>
+            </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>`;
+}
 
   // ── Employer table ────────────────────────────────────────────────────────
   function renderEmployerTable(apps, wrap) {
-    wrap.innerHTML = `
-      <div class="table-wrap">
-        <table>
-          <thead>
+  wrap.innerHTML = `
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Applicant ID</th>
+            <th>Cover Letter</th>
+            <th>Status</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${apps.map(a => `
             <tr>
-              <th>Applicant ID</th>
-              <th>Applied</th>
-              <th>Cover Letter</th>
-              <th>Status</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${apps.map(a => `
-              <tr>
-                <td style="font-weight:500">Seeker #${a.seeker_id}</td>
-                <td style="color:var(--text-muted)">${fmtDate(a.created_at)}</td>
-                <td style="color:var(--text-muted);max-width:220px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
-                  ${a.cover_letter ? esc(a.cover_letter) : '<em>No cover letter</em>'}
-                </td>
-                <td>${statusBadge(a.status)}</td>
-                <td style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap">
-                  <select class="status-select" onchange="updateStatus(${a.id}, this.value, this)">
-                    <option value="pending"  ${a.status==='pending'  ? 'selected':''}>Pending</option>
-                    <option value="reviewed" ${a.status==='reviewed' ? 'selected':''}>Reviewed</option>
-                    <option value="accepted" ${a.status==='accepted' ? 'selected':''}>Accepted</option>
-                    <option value="rejected" ${a.status==='rejected' ? 'selected':''}>Rejected</option>
-                  </select>
-                  <button class="btn btn-ghost btn-sm" onclick="showHistory(${a.id})">History</button>
-                </td>
-              </tr>`).join('')}
-          </tbody>
-        </table>
-      </div>`;
-  }
+              <td style="font-weight:500">Seeker #${a.seeker_id}</td>
+              <td style="color:var(--text-muted);max-width:220px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
+                ${a.cover_letter ? esc(a.cover_letter) : '<em>No cover letter</em>'}
+              </td>
+              <td>${statusBadge(a.status)}</td>
+              <td style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap">
+                <select class="status-select" onchange="updateStatus(${a.id}, this.value, this)">
+                  <option value="pending"  ${a.status==='pending'  ? 'selected':''}>Pending</option>
+                  <option value="reviewed" ${a.status==='reviewed' ? 'selected':''}>Reviewed</option>
+                  <option value="accepted" ${a.status==='accepted' ? 'selected':''}>Accepted</option>
+                  <option value="rejected" ${a.status==='rejected' ? 'selected':''}>Rejected</option>
+                </select>
+                <button class="btn btn-ghost btn-sm" onclick="showHistory(${a.id})">History</button>
+              </td>
+            </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>`;
+}
 
   // ── Update Status (employer) ──────────────────────────────────────────────
   async function updateStatus(appId, newStatus, selectEl) {
@@ -284,7 +276,6 @@
           <div style="display:flex;align-items:center;gap:.75rem">
             <div style="width:28px;height:28px;border-radius:50%;background:var(--surface2);border:2px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:.7rem;color:var(--text-muted);flex-shrink:0">${i+1}</div>
             <div style="flex:1">
-              <div style="font-size:.8rem;color:var(--text-muted)">${fmtDate(r.changed_at)}</div>
               <div style="display:flex;align-items:center;gap:.5rem;margin-top:.2rem">
                 ${r.old_status ? `<span class="status-badge status-${r.old_status}">${r.old_status}</span><span style="color:var(--text-muted)">→</span>` : '<span style="color:var(--text-muted);font-size:.8rem">Created</span>'}
                 <span class="status-badge status-${r.new_status}">${r.new_status}</span>
