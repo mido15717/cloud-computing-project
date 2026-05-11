@@ -1,0 +1,38 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: application-service
+  namespace: job-portal
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: application-service
+  template:
+    metadata:
+      labels:
+        app: application-service
+    spec:
+      containers:
+        - name: application-service
+          image: application-service:latest
+          imagePullPolicy: Never
+          ports:
+            - containerPort: 3003
+          env:
+            - name: PORT
+              value: "3003"
+            - name: NODE_ENV
+              valueFrom:
+                configMapKeyRef:
+                  name: job-portal-config
+                  key: NODE_ENV
+            - name: RABBITMQ_URL
+              value: "amqp://rabbitmq:5672"
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: job-portal-secrets
+                  key: JWT_SECRET
+            - name: DATABASE_URL
+              value: "postgresql://jp_user:jp_pass@apps-db:5432/apps_db"
