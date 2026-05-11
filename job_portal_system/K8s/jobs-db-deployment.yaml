@@ -1,0 +1,30 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: jobs-db
+  namespace: job-portal
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: jobs-db
+  template:
+    metadata:
+      labels:
+        app: jobs-db
+    spec:
+      containers:
+        - name: jobs-db
+          image: postgres:16-alpine
+          ports:
+            - containerPort: 5432
+          env:
+            - name: POSTGRES_DB
+              value: "jobs_db"
+            - name: POSTGRES_USER
+              value: "jp_user"
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: job-portal-secrets
+                  key: DB_PASSWORD
