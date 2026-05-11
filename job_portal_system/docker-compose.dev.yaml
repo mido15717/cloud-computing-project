@@ -1,8 +1,8 @@
-
 name: job-portal-dev
 
 services:
 
+  # ── Databases ──────────────────────────────────────────────────────────────
   users-db:
     image: postgres:16-alpine
     container_name: dev-users-db
@@ -63,6 +63,23 @@ services:
       timeout: 5s
       retries: 5
 
+  # ── RabbitMQ ───────────────────────────────────────────────────────────────
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    container_name: dev-rabbitmq
+    ports:
+      - "5672:5672"    # AMQP
+      - "15672:15672"  # Management UI → http://localhost:15672  guest/guest
+    networks:
+      - job-portal-dev-net
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "check_port_connectivity"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # ── Services ───────────────────────────────────────────────────────────────
   user-management-service:
     build:
       context: "./User Management Service"
@@ -71,10 +88,10 @@ services:
     ports:
       - "3001:3001"
     environment:
-      NODE_ENV: development
-      PORT: 3001
+      NODE_ENV:     development
+      PORT:         3001
       DATABASE_URL: postgresql://jp_user:jp_pass@users-db:5432/users_db
-      JWT_SECRET: dev-secret-change-in-prod
+      JWT_SECRET:   dev-secret-change-in-prod
     networks:
       - job-portal-dev-net
     depends_on:
@@ -90,10 +107,10 @@ services:
     ports:
       - "3002:3002"
     environment:
-      NODE_ENV: development
-      PORT: 3002
+      NODE_ENV:     development
+      PORT:         3002
       DATABASE_URL: postgresql://jp_user:jp_pass@jobs-db:5432/jobs_db
-      JWT_SECRET: dev-secret-change-in-prod
+      JWT_SECRET:   dev-secret-change-in-prod
     networks:
       - job-portal-dev-net
     depends_on:
@@ -109,15 +126,17 @@ services:
     ports:
       - "3003:3003"
     environment:
-      NODE_ENV: development
-      PORT: 3003
+      NODE_ENV:     development
+      PORT:         3003
       DATABASE_URL: postgresql://jp_user:jp_pass@apps-db:5432/apps_db
-      JWT_SECRET: dev-secret-change-in-prod
-      NOTIFICATION_URL: http://notification-service:3004
+      JWT_SECRET:   dev-secret-change-in-prod
+      RABBITMQ_URL: amqp://rabbitmq:5672   # ← added; was missing entirely
     networks:
       - job-portal-dev-net
     depends_on:
       apps-db:
+        condition: service_healthy
+      rabbitmq:                            # ← added; must be up before publishing
         condition: service_healthy
     restart: unless-stopped
 
@@ -129,16 +148,17 @@ services:
     ports:
       - "3004:3004"
     environment:
-      NODE_ENV: development
-      PORT: 3004
-      SMTP_HOST: smtp.gmail.com
-      SMTP_PORT: 587
-      SMTP_USER: your-email@gmail.com
-      SMTP_PASS: your-app-password
+      NODE_ENV:     development
+      PORT:         3004
+      RABBITMQ_URL: amqp://rabbitmq:5672   # ← added; was missing entirely
+      # SMTP_* vars removed — code no longer sends email
     networks:
       - job-portal-dev-net
+    depends_on:
+      rabbitmq:                            # ← added; must be up before consuming
+        condition: service_healthy
     restart: unless-stopped
-    
+
   frontend:
     build:
       context: "./frontend"
@@ -163,4 +183,3 @@ volumes:
   dev-users-db-data:
   dev-jobs-db-data:
   dev-apps-db-data:
-
