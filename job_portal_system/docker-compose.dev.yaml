@@ -69,7 +69,7 @@ services:
     container_name: dev-rabbitmq
     ports:
       - "5672:5672"    
-      - "15672:15672"  # Management UI → http://localhost:15672  guest/guest
+      - "15672:15672"  
     networks:
       - job-portal-dev-net
     healthcheck:
@@ -91,7 +91,7 @@ services:
       NODE_ENV:     development
       PORT:         3001
       DATABASE_URL: postgresql://jp_user:jp_pass@users-db:5432/users_db
-      JWT_SECRET:   dev-secret-change-in-prod
+      JWT_SECRET:   mohamed2005
     networks:
       - job-portal-dev-net
     depends_on:
@@ -110,7 +110,7 @@ services:
       NODE_ENV:     development
       PORT:         3002
       DATABASE_URL: postgresql://jp_user:jp_pass@jobs-db:5432/jobs_db
-      JWT_SECRET:   dev-secret-change-in-prod
+      JWT_SECRET:   mohamed2005
     networks:
       - job-portal-dev-net
     depends_on:
@@ -129,7 +129,7 @@ services:
       NODE_ENV:     development
       PORT:         3003
       DATABASE_URL: postgresql://jp_user:jp_pass@apps-db:5432/apps_db
-      JWT_SECRET:   dev-secret-change-in-prod
+      JWT_SECRET:   mohamed2005
       RABBITMQ_URL: amqp://rabbitmq:5672  
     networks:
       - job-portal-dev-net
