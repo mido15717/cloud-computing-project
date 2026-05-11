@@ -68,7 +68,7 @@ services:
     image: rabbitmq:3.13-management-alpine
     container_name: dev-rabbitmq
     ports:
-      - "5672:5672"    # AMQP
+      - "5672:5672"    
       - "15672:15672"  # Management UI → http://localhost:15672  guest/guest
     networks:
       - job-portal-dev-net
@@ -130,13 +130,13 @@ services:
       PORT:         3003
       DATABASE_URL: postgresql://jp_user:jp_pass@apps-db:5432/apps_db
       JWT_SECRET:   dev-secret-change-in-prod
-      RABBITMQ_URL: amqp://rabbitmq:5672   # ← added; was missing entirely
+      RABBITMQ_URL: amqp://rabbitmq:5672  
     networks:
       - job-portal-dev-net
     depends_on:
       apps-db:
         condition: service_healthy
-      rabbitmq:                            # ← added; must be up before publishing
+      rabbitmq:                            
         condition: service_healthy
     restart: unless-stopped
 
@@ -150,12 +150,11 @@ services:
     environment:
       NODE_ENV:     development
       PORT:         3004
-      RABBITMQ_URL: amqp://rabbitmq:5672   # ← added; was missing entirely
-      # SMTP_* vars removed — code no longer sends email
+      RABBITMQ_URL: amqp://rabbitmq:5672   
     networks:
       - job-portal-dev-net
     depends_on:
-      rabbitmq:                            # ← added; must be up before consuming
+      rabbitmq:                            
         condition: service_healthy
     restart: unless-stopped
 

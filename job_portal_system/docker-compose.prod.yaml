@@ -1,6 +1,8 @@
-version: '3.8'
+name: job-portal-prod
+
 services:
 
+  # ── Databases ──────────────────────────────────────────────────────────────
   users-db:
     image: postgres:16-alpine
     container_name: prod-users-db
@@ -58,6 +60,21 @@ services:
       retries: 5
     restart: always
 
+  # ── RabbitMQ ───────────────────────────────────────────────────────────────
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    container_name: prod-rabbitmq
+    networks:
+      - job-portal-prod-net
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "check_port_connectivity"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: always
+    # Note: no ports exposed in prod — internal only, not accessible from host
+
+  # ── Services ───────────────────────────────────────────────────────────────
   user-management-service:
     build:
       context: "./User Management Service"
@@ -66,10 +83,10 @@ services:
     ports:
       - "5001:3001"
     environment:
-      NODE_ENV: production
-      PORT: 3001
+      NODE_ENV:     production
+      PORT:         3001
       DATABASE_URL: postgresql://jp_user:${DB_PASSWORD}@users-db:5432/users_db
-      JWT_SECRET: ${JWT_SECRET}
+      JWT_SECRET:   ${JWT_SECRET}
     networks:
       - job-portal-prod-net
     depends_on:
@@ -85,10 +102,10 @@ services:
     ports:
       - "5002:3002"
     environment:
-      NODE_ENV: production
-      PORT: 3002
+      NODE_ENV:     production
+      PORT:         3002
       DATABASE_URL: postgresql://jp_user:${DB_PASSWORD}@jobs-db:5432/jobs_db
-      JWT_SECRET: ${JWT_SECRET}
+      JWT_SECRET:   ${JWT_SECRET}
     networks:
       - job-portal-prod-net
     depends_on:
@@ -104,15 +121,18 @@ services:
     ports:
       - "5003:3003"
     environment:
-      NODE_ENV: production
-      PORT: 3003
+      NODE_ENV:     production
+      PORT:         3003
       DATABASE_URL: postgresql://jp_user:${DB_PASSWORD}@apps-db:5432/apps_db
-      JWT_SECRET: ${JWT_SECRET}
-      NOTIFICATION_URL: http://notification-service:3004
+      JWT_SECRET:   ${JWT_SECRET}
+      RABBITMQ_URL: amqp://rabbitmq:5672   # ← added
+      # NOTIFICATION_URL removed — replaced by RabbitMQ
     networks:
       - job-portal-prod-net
     depends_on:
       apps-db:
+        condition: service_healthy
+      rabbitmq:                            # ← added
         condition: service_healthy
     restart: always
 
@@ -124,27 +144,18 @@ services:
     ports:
       - "5004:3004"
     environment:
-      NODE_ENV: production
-      PORT: 3004
-      SMTP_HOST: ${SMTP_HOST}
-      SMTP_PORT: ${SMTP_PORT}
-      SMTP_USER: ${SMTP_USER}
-      SMTP_PASS: ${SMTP_PASS}
+      NODE_ENV:     production
+      PORT:         3004
+      RABBITMQ_URL: amqp://rabbitmq:5672   # ← added
+      # SMTP_* vars removed — code no longer sends email
     networks:
       - job-portal-prod-net
+    depends_on:
+      rabbitmq:                            # ← added
+        condition: service_healthy
     restart: always
 
-networks:
-  job-portal-prod-net:
-    name: job-portal-prod-net
-    driver: bridge
-
-volumes:
-  prod-users-db-data:
-  prod-jobs-db-data:
-  prod-apps-db-data:
-
-frontend:
+  frontend:                                # ← moved inside services block
     build:
       context: "./frontend"
       dockerfile: dockerfile
@@ -158,3 +169,13 @@ frontend:
       - job-service
       - application-service
     restart: always
+
+networks:
+  job-portal-prod-net:
+    name: job-portal-prod-net
+    driver: bridge
+
+volumes:
+  prod-users-db-data:
+  prod-jobs-db-data:
+  prod-apps-db-data:

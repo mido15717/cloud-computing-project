@@ -1,8 +1,8 @@
-
 name: job-portal-test
 
 services:
 
+  # ── Databases ──────────────────────────────────────────────────────────────
   users-db:
     image: postgres:16-alpine
     container_name: test-users-db
@@ -54,18 +54,31 @@ services:
       timeout: 3s
       retries: 10
 
+  # ── RabbitMQ ───────────────────────────────────────────────────────────────
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    container_name: test-rabbitmq
+    networks:
+      - job-portal-test-net
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "check_port_connectivity"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # ── Services ───────────────────────────────────────────────────────────────
   user-management-service:
     build:
       context: "./User Management Service"
       dockerfile: dockerfile
     container_name: test-user-service
     ports:
-      - "4001:3001"    
+      - "4001:3001"
     environment:
-      NODE_ENV: test
-      PORT: 3001
+      NODE_ENV:     test
+      PORT:         3001
       DATABASE_URL: postgresql://jp_user:jp_pass@users-db:5432/users_test
-      JWT_SECRET: test-secret
+      JWT_SECRET:   test-secret
     networks:
       - job-portal-test-net
     depends_on:
@@ -80,10 +93,10 @@ services:
     ports:
       - "4002:3002"
     environment:
-      NODE_ENV: test
-      PORT: 3002
+      NODE_ENV:     test
+      PORT:         3002
       DATABASE_URL: postgresql://jp_user:jp_pass@jobs-db:5432/jobs_test
-      JWT_SECRET: test-secret
+      JWT_SECRET:   test-secret
     networks:
       - job-portal-test-net
     depends_on:
@@ -98,15 +111,18 @@ services:
     ports:
       - "4003:3003"
     environment:
-      NODE_ENV: test
-      PORT: 3003
+      NODE_ENV:     test
+      PORT:         3003
       DATABASE_URL: postgresql://jp_user:jp_pass@apps-db:5432/apps_test
-      JWT_SECRET: test-secret
-      NOTIFICATION_URL: http://notification-service:3004
+      JWT_SECRET:   test-secret
+      RABBITMQ_URL: amqp://rabbitmq:5672   # ← added
+      # NOTIFICATION_URL removed — replaced by RabbitMQ
     networks:
       - job-portal-test-net
     depends_on:
       apps-db:
+        condition: service_healthy
+      rabbitmq:                            # ← added
         condition: service_healthy
 
   notification-service:
@@ -117,21 +133,17 @@ services:
     ports:
       - "4004:3004"
     environment:
-      NODE_ENV: test
-      PORT: 3004
-      SMTP_HOST: smtp.gmail.com
-      SMTP_PORT: 587
-      SMTP_USER: your-email@gmail.com
-      SMTP_PASS: your-app-password
+      NODE_ENV:     test
+      PORT:         3004
+      RABBITMQ_URL: amqp://rabbitmq:5672   # ← added
+      # SMTP_* vars removed — code no longer sends email
     networks:
       - job-portal-test-net
+    depends_on:
+      rabbitmq:                            # ← added
+        condition: service_healthy
 
-networks:
-  job-portal-test-net:
-    name: job-portal-test-net
-    driver: bridge
-
-frontend:
+  frontend:                                # ← moved inside services block
     build:
       context: "./Frontend"
       dockerfile: dockerfile
@@ -144,3 +156,8 @@ frontend:
       - user-management-service
       - job-service
       - application-service
+
+networks:
+  job-portal-test-net:
+    name: job-portal-test-net
+    driver: bridge
