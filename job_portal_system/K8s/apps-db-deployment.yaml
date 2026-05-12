@@ -28,3 +28,44 @@ spec:
                 secretKeyRef:
                   name: job-portal-secrets
                   key: DB_PASSWORD
+          volumeMounts:
+            - name: schema
+              mountPath: /docker-entrypoint-initdb.d
+            - name: data
+              mountPath: /var/lib/postgresql/data
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-U", "jp_user", "-d", "apps_db"]
+            initialDelaySeconds: 10
+            periodSeconds: 5
+      volumes:
+        - name: schema
+          configMap:
+            name: apps-db-schema
+        - name: data
+          persistentVolumeClaim:
+            claimName: apps-db-pvc
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: apps-db-pvc
+  namespace: job-portal
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: apps-db
+  namespace: job-portal
+spec:
+  selector:
+    app: apps-db
+  ports:
+    - port: 5432
+      targetPort: 5432
